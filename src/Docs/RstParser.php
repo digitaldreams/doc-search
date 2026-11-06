@@ -3,7 +3,7 @@
 namespace App\Docs;
 
 /**
- * Reads Symfony's reStructuredText docs into sections of rendered blocks.
+ * Reads Sphinx-style reStructuredText docs (Symfony, Twig, Doctrine) into sections of rendered blocks.
  *
  * A block renders twice: "text" with one config format (what gets embedded), "source" with every format
  * (what a reader sees).
@@ -13,25 +13,26 @@ namespace App\Docs;
 final class RstParser
 {
     private const ADORN = '/^([=\-~^"#+*`.:_\'])\1{2,}\s*$/u';
-    private const INCLUDE = '/^(\s*)\.\. include::\s+(\S+)\s*$/u';
+    private const INCLUDE = '/^(\s*)\.\. (include|literalinclude)::\s+(\S+)\s*$/u';
     private const DIRECTIVE = '/^( *)\.\. ([\w:-]+)::(?:\s+(.*))?$/u';
     private const TABLE_RULE = '/^\s*[=\-+|]{3,}[=\-+|\s]*$/u';
     private const OPTION = '/^\s*:[\w-]+:(\s|$)/u'; // `:doc:`x`` opening a body is prose, not an option
     private const COMMENT = '/^\s*\.\.(\s|$)/u'; // `... but` is prose, not a comment
     private const ROLE = '/:[\w:+-]+:`([^`]+)`/u';
     private const LINK = '/`([^`<]+?)(?:\s*<[^>]+>)?`_{1,2}/u';
-    private const DROP = ['toctree', 'image', 'figure', 'raw', 'index', 'contents', 'screencast', 'highlight', 'rst-class', 'class'];
+    private const DROP = ['toctree', 'image', 'figure', 'raw', 'index', 'contents', 'screencast', 'highlight', 'rst-class', 'class', 'sectionauthor'];
     public const LABELS = ['note' => 'Note', 'tip' => 'Tip', 'caution' => 'Caution', 'warning' => 'Warning', 'danger' => 'Danger',
-        'important' => 'Important', 'seealso' => 'See also', 'versionadded' => 'New in Symfony', 'deprecated' => 'Deprecated in Symfony'];
+        'important' => 'Important', 'seealso' => 'See also', 'versionadded' => 'New in', 'deprecated' => 'Deprecated in'];
 
     /** @return list<array{list<string>, list<array{string, string}>, ?string}> breadcrumb, blocks as [text, source], anchor */
-    public function sections(string $rel, string $root): array
+    /** @param string $product names the release in version markers: "New in Twig 3.6" */
+    public function sections(string $rel, string $root, string $product = 'Symfony'): array
     {
         $out = [];
         foreach ($this->split($this->expand($rel, $root)) as [$path, $body]) {
             $items = [];
             foreach ($this->blocks($body) as $b) {
-                $item = [$this->render($b, 'first'), $this->render($b, 'all')];
+                $item = [$this->render($b, 'first', $product), $this->render($b, 'all', $product)];
                 if ('' !== $item[0] || '' !== $item[1]) {
                     $items[] = $item;
                 }
@@ -44,6 +45,8 @@ final class RstParser
 
     /**
      * Inline `.. include::`: includes hold real content (e.g. every constraint's options).
+     * `.. literalinclude::` becomes a code block of its file, so a config block can still pick one format.
+     * ponytail: :lines:/:start-after: are ignored, the whole file is shown; the docs read whole files today.
      *
      * @param list<string> $stack
      *
@@ -56,18 +59,33 @@ final class RstParser
             return [];
         }
         $out = [];
-        foreach (explode("\n", str_replace(["\r\n", "\r"], "\n", file_get_contents($path))) as $line) {
-            if (!preg_match(self::INCLUDE, $line, $m)) {
-                $out[] = $line;
+        $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", file_get_contents($path)));
+        for ($i = 0; $i < \count($lines); ++$i) {
+            if (!preg_match(self::INCLUDE, $lines[$i], $m)) {
+                $out[] = $lines[$i];
                 continue;
             }
             $dir = \dirname($rel);
-            $target = str_starts_with($m[2], '/') ? ltrim($m[2], '/') : ('.' === $dir ? $m[2] : "$dir/$m[2]");
-            if (!is_file("$root/$target")) {
+            $target = str_starts_with($m[3], '/') ? ltrim($m[3], '/') : ('.' === $dir ? $m[3] : "$dir/$m[3]");
+            if ('include' === $m[2]) {
+                if (is_file("$root/$target")) {
+                    foreach ($this->expand($target, $root, [...$stack, $path]) as $x) {
+                        $out[] = '' !== $x ? $m[1].$x : $x;
+                    }
+                }
                 continue;
             }
-            foreach ($this->expand($target, $root, [...$stack, $path]) as $x) {
-                $out[] = '' !== $x ? $m[1].$x : $x;
+            $language = '';
+            for (; $i + 1 < \count($lines) && preg_match(self::OPTION, $lines[$i + 1]) && self::indent($lines[$i + 1]) > \strlen($m[1]); ++$i) {
+                $language = preg_match('/^\s*:language:\s*(\S+)/u', $lines[$i + 1], $l) ? $l[1] : $language;
+            }
+            $file = Chunker::inside($root, $target);
+            if (null !== $file) {
+                $out[] = rtrim("$m[1].. code-block:: $language");
+                $out[] = '';
+                foreach (explode("\n", rtrim(str_replace(["\r\n", "\r"], "\n", file_get_contents($file)))) as $x) {
+                    $out[] = '' !== $x ? "$m[1]    $x" : $x;
+                }
             }
         }
 
@@ -159,7 +177,7 @@ final class RstParser
      *
      * @param list<string> $lines
      */
-    private function render(array $lines, string $formats): string
+    private function render(array $lines, string $formats, string $product): string
     {
         $out = [];
         for ($i = 0; $i < \count($lines);) {
@@ -173,13 +191,13 @@ final class RstParser
                 } elseif ('configuration-block' === $name) {
                     $out[] = $this->configBlock($inner, $formats);
                 } elseif (isset(self::LABELS[$name])) {
-                    $label = self::LABELS[$name];
+                    $label = self::LABELS[$name].(\in_array($name, ['versionadded', 'deprecated'], true) ? " $product" : '');
                     $head = '' !== $arg && \in_array($name, ['versionadded', 'deprecated'], true)
                         ? Chunker::strip("$label $arg").':'
                         : $label.':'.('' !== $arg ? ' '.self::inline($arg) : '');
-                    $out[] = $head."\n".$this->render($inner, $formats);
+                    $out[] = $head."\n".$this->render($inner, $formats, $product);
                 } elseif (!\in_array($name, self::DROP, true)) {
-                    $out[] = ('' !== $arg ? self::inline($arg)."\n" : '').$this->render($inner, $formats);
+                    $out[] = ('' !== $arg ? self::inline($arg)."\n" : '').$this->render($inner, $formats, $product);
                 }
                 $i = $end;
             } elseif (preg_match(self::COMMENT, $line)) { // comment, label, link target, substitution

@@ -38,7 +38,7 @@ final class IngestCommand
         $config = $this->repos->get($key);
 
         $start = microtime(true);
-        $chunks = $this->chunker->chunkTree($config['path'], $config['extension'], $config['exclude'] ?? []);
+        $chunks = $this->chunker->chunkTree($config['path'], $config['extension'], $config['exclude'] ?? [], $config['label']);
         $io->writeln(\sprintf('%d chunks from %s in %.1fs', \count($chunks), $key, microtime(true) - $start));
 
         $start = microtime(true);

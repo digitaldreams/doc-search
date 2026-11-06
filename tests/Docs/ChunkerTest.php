@@ -30,7 +30,7 @@ final class ChunkerTest extends TestCase
         RST;
 
     /** @param array<string, string> $files */
-    private function chunks(string $rst, array $files = [], int $maxTokens = 512): array
+    private function chunks(string $rst, array $files = [], int $maxTokens = 512, string $product = 'Symfony'): array
     {
         $root = sys_get_temp_dir().'/chunker'.bin2hex(random_bytes(6));
         foreach (['page.rst' => $rst] + $files as $name => $body) {
@@ -38,7 +38,7 @@ final class ChunkerTest extends TestCase
             file_put_contents("$root/$name", $body);
         }
         try {
-            return (new Chunker())->chunkFile('page.rst', $root, $maxTokens);
+            return (new Chunker())->chunkFile('page.rst', $root, $maxTokens, $product);
         } finally {
             exec('rm -rf '.escapeshellarg($root));
         }
@@ -87,7 +87,7 @@ final class ChunkerTest extends TestCase
         symlink("$outer/outside.txt", "$outer/repo/leak.md");
         symlink("$outer/outside.txt", "$outer/repo/sub/inner.txt");
         file_put_contents("$outer/repo/ok.md", "# Ok\n\nmarkdown kept");
-        file_put_contents("$outer/repo/page.rst", "Page\n====\n\nrst kept\n\n.. include:: ../outside.txt\n\n.. include:: /../outside.txt\n\n.. include:: sub/inner.txt\n");
+        file_put_contents("$outer/repo/page.rst", "Page\n====\n\nrst kept\n\n.. include:: ../outside.txt\n\n.. include:: /../outside.txt\n\n.. include:: sub/inner.txt\n\n.. literalinclude:: ../outside.txt\n\n.. literalinclude:: sub/inner.txt\n");
         try {
             $chunks = [...(new Chunker())->chunkTree("$outer/repo", 'md'), ...(new Chunker())->chunkTree("$outer/repo", 'rst')];
         } finally {
@@ -208,6 +208,41 @@ final class ChunkerTest extends TestCase
     {
         $cs = $this->chunks("Top\n===\n\n.. versionadded:: 8.1\n\n    The foo option was introduced in Symfony 8.1.\n\n.. note::\n\n    Mind the gap.\n\n.. deprecated:: 8.0\n\n    Bar is deprecated.\n");
         self::assertSame("New in Symfony 8.1:\nThe foo option was introduced in Symfony 8.1.\n\nNote:\nMind the gap.\n\nDeprecated in Symfony 8.0:\nBar is deprecated.", $cs[0]['text']);
+    }
+
+    public function testVersionMarkersNameTheRepoProduct(): void
+    {
+        $cs = $this->chunks("Top\n===\n\n.. versionadded:: 3.6\n\n    Relative formats.\n\n.. deprecated:: 3.9\n\n    Old tag.\n", product: 'Twig');
+        self::assertSame("New in Twig 3.6:\nRelative formats.\n\nDeprecated in Twig 3.9:\nOld tag.", $cs[0]['text']);
+    }
+
+    public function testSectionAuthorIsDropped(): void
+    {
+        $cs = $this->chunks("Top\n===\n\n.. sectionauthor:: Jane Doe <jane@example.com>\n\nkept\n");
+        self::assertSame('kept', $cs[0]['text']);
+    }
+
+    public function testLiteralIncludeIsItsFileAsCode(): void
+    {
+        $c = $this->chunks(<<<'RST'
+            Top
+            ===
+
+            .. literalinclude:: page/Person.php
+               :language: php
+
+            .. configuration-block::
+
+                .. literalinclude:: page/person.xml
+                    :language: xml
+
+                .. literalinclude:: /page/Person.php
+                    :language: php
+
+            after
+            RST, ['page/Person.php' => "<?php\nclass Person {}\n", 'page/person.xml' => "<entity name=\"Person\"/>\n"])[0];
+        self::assertSame("<?php\nclass Person {}\n\n<?php\nclass Person {}\n\nafter", $c['text']);
+        self::assertSame("<?php\nclass Person {}\n\n<entity name=\"Person\"/>\n\n<?php\nclass Person {}\n\nafter", $c['source']);
     }
 
     public function testConfigBlockEmbedsOneFormatButSourceKeepsAll(): void

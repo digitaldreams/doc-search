@@ -50,27 +50,28 @@ final class Chunker
 
     /**
      * @param list<string> $exclude Finder path patterns: a substring, a glob or a regex
+     * @param string        $product the name RST version markers use: "New in <product> 3.6"
      *
      * @return list<Chunk>
      */
-    public function chunkTree(string $root, string $extension, array $exclude = [], int $maxTokens = 512): array
+    public function chunkTree(string $root, string $extension, array $exclude = [], string $product = 'Symfony', int $maxTokens = 512): array
     {
         // dot files and dirs are skipped by Finder's default
         $files = Finder::create()->files()->in($root)->name("*.$extension")->notPath($exclude)->sortByName();
         $out = [];
         foreach ($files as $file) {
-            array_push($out, ...$this->chunkFile($file->getRelativePathname(), $root, $maxTokens));
+            array_push($out, ...$this->chunkFile($file->getRelativePathname(), $root, $maxTokens, $product));
         }
 
         return $out;
     }
 
     /** @return list<Chunk> */
-    public function chunkFile(string $rel, string $root, int $maxTokens = 512): array
+    public function chunkFile(string $rel, string $root, int $maxTokens = 512, string $product = 'Symfony'): array
     {
-        $parser = 'md' === pathinfo($rel, \PATHINFO_EXTENSION) ? $this->md : $this->rst;
+        $sections = 'md' === pathinfo($rel, \PATHINFO_EXTENSION) ? $this->md->sections($rel, $root) : $this->rst->sections($rel, $root, $product);
         $out = [];
-        foreach ($parser->sections($rel, $root) as [$path, $items, $anchor]) {
+        foreach ($sections as [$path, $items, $anchor]) {
             foreach ($this->pack($items, $maxTokens) as [$text, $source]) {
                 if ('' !== self::strip($text)) {
                     $id = substr(sha1($rel."\0".implode(' > ', $path)."\0".$text), 0, 16);

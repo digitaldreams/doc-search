@@ -16,3 +16,5 @@
 
 # other docs repos cloned for app.docs_repos
 /data/laravel-docs/
+/data/twig/
+/data/doctrine-orm/

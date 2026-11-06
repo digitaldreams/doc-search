@@ -38,6 +38,28 @@ parameters:
             exclude: [readme.md, license.md, documentation.md] # documentation.md is the site's menu
             examples:
                 - run a closure on a different queue connection
+        # Sparse clone of the doc/ folder: `git clone --depth 1 --filter=blob:none --sparse -b 3.x https://github.com/twigphp/Twig data/twig && git -C data/twig sparse-checkout set doc`
+        twigphp/Twig:
+            label: Twig
+            path: '%kernel.project_dir%/data/twig/doc'
+            extension: rst
+            url: 'https://twig.symfony.com/doc/3.x/{page}.html'
+            exclude: ['#(^|/)_#'] # _build is the site builder
+            examples:
+                - format a date in the user's language
+                - loop over items and do something different for the last one
+                - escape a variable for use inside a JavaScript string
+        # Same, -b 3.7.x https://github.com/doctrine/orm data/doctrine-orm, sparse-checkout set docs
+        doctrine/orm:
+            label: Doctrine ORM
+            path: '%kernel.project_dir%/data/doctrine-orm/docs/en'
+            extension: rst
+            url: 'https://www.doctrine-project.org/projects/doctrine-orm/en/3.7/{page}.html'
+            exclude: [sidebar.rst] # the site's menu
+            examples:
+                - store a PHP enum in a column
+                - keep a running total on the parent without loading every child
+                - fetch big result sets without running out of memory
 
 services:
     # default configuration for services in *this* file
