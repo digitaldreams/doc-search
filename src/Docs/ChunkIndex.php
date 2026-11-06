@@ -48,17 +48,19 @@ final class ChunkIndex
         }
         // Chunk ids hash the text, not the model: without this, a new model would keep every old vector and
         // embed only new chunks, mixing two vector spaces of the same size with no error.
-        $model = $this->db->fetchOne('SELECT model FROM index_meta');
-        if (false === $model) {
-            $this->db->executeStatement('INSERT INTO index_meta (model) VALUES (?)', [Embedder::MODEL]);
-        } elseif (Embedder::MODEL !== $model) {
-            throw new \RuntimeException(\sprintf('The index was built with %s, not %s. Empty the chunks, chunk_terms, query_vectors and index_meta tables to rebuild it, index left unchanged.', $model, Embedder::MODEL));
+        $model = $this->embedder->model();
+        $built = $this->db->fetchOne('SELECT model FROM index_meta');
+        if (false === $built) {
+            $this->db->executeStatement('INSERT INTO index_meta (model) VALUES (?)', [$model]);
+        } elseif ($model !== $built) {
+            throw new \RuntimeException(\sprintf('The index was built with %s, not %s. Empty the chunks, chunk_terms, query_vectors and index_meta tables to rebuild it, index left unchanged.', $built, $model));
         }
         $have = array_flip($this->db->fetchFirstColumn('SELECT id FROM chunks'));
         $wanted = array_column($chunks, null, 'id');
         $gone = array_keys(array_diff_key($have, $wanted));
         $todo = array_values(array_diff_key($wanted, $have));
-        $seeds = $this->readSeeds($seedFile, array_column($todo, 'id'));
+        // shipped vectors live in the default model's space; another model must embed everything itself
+        $seeds = Embedder::DEFAULT_MODEL === $model ? $this->readSeeds($seedFile, array_column($todo, 'id')) : [];
 
         if ($gone) {
             $this->db->executeStatement('DELETE FROM chunks WHERE id = ANY(CAST(? AS text[]))', ['{'.implode(',', $gone).'}']);

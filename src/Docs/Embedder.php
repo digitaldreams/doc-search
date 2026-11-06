@@ -7,14 +7,17 @@ use Symfony\AI\Platform\Bridge\Ollama\Factory as OllamaFactory;
 use Symfony\AI\Platform\Bridge\Ollama\Ollama;
 use Symfony\AI\Platform\Capability;
 use Symfony\AI\Platform\PlatformInterface;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
- * Talks to embeddinggemma-2. Passing a Model skips the catalog's POST /api/show on every call.
+ * Talks to the embedding model. Passing a Model skips the catalog's POST /api/show on every call.
  */
 final class Embedder
 {
-    public const MODEL = 'embeddinggemma-2:270m-q8_0-text';
+    /** The model the shipped data/seed_vectors.bin was built with. */
+    public const DEFAULT_MODEL = 'embeddinggemma-2:270m-q8_0-text';
+    /** Fixed by the vector(768) column: another model must return this many dimensions. */
     public const DIMENSIONS = 768;
 
     /** Long enough for a cold model load (2-14 s measured), short enough that a hung host does not hang the page. */
@@ -28,7 +31,13 @@ final class Embedder
         private readonly string $host,
         private readonly ?HttpClientInterface $http = null,
         private readonly float $querySeconds = self::QUERY_SECONDS,
+        #[Autowire('%env(EMBEDDING_MODEL)%')] private readonly string $model = self::DEFAULT_MODEL,
     ) {
+    }
+
+    public function model(): string
+    {
+        return $this->model;
     }
 
     /**
@@ -89,7 +98,7 @@ final class Embedder
      */
     private function embed(array $texts, ?PlatformInterface $platform = null): array
     {
-        $model = new Ollama(self::MODEL, [Capability::EMBEDDINGS]);
+        $model = new Ollama($this->model, [Capability::EMBEDDINGS]);
         $out = [];
         foreach (($platform ?? $this->platform)->invoke($model, $texts)->asVectors() as $vector) {
             $out[] = self::unit($vector->getData());

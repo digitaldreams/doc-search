@@ -7,6 +7,7 @@ use Symfony\AI\Platform\Vector\Vector;
 use Symfony\AI\Store\Document\VectorDocumentInterface;
 use Symfony\AI\Store\Query\VectorQuery;
 use Symfony\AI\Store\StoreInterface;
+use Symfony\Component\Lock\LockFactory;
 
 /**
  * The search itself: vectors for meaning, BM25 for exact identifiers, routed by the shape of the question.
@@ -24,11 +25,12 @@ final class Retriever
         private readonly StoreInterface $store,
         private readonly Connection $db,
         private readonly ?Reranker $reranker = null,
+        private readonly ?LockFactory $locks = null,
     ) {
     }
 
     /**
-     * @return array{hits: list<Hit>, mode: 'vector'|'hybrid'|'keyword'|'none', embedding: 'live'|'saved'|'none', rerank: 'off'|'done'|'failed', ms: array<string, float>}
+     * @return array{hits: list<Hit>, mode: 'vector'|'hybrid'|'keyword'|'none', embedding: 'live'|'saved'|'none', rerank: 'off'|'done'|'failed'|'busy', ms: array<string, float>}
      */
     public function search(string $query, int $k = 10, bool $rerank = false): array
     {
@@ -48,14 +50,23 @@ final class Retriever
             default => $vector,
         };
         $mode = null === $embedded['vector'] ? 'keyword' : ($useKeywords ? 'hybrid' : 'vector');
+        $hits = self::demoteRepeats($hits);
 
         $reordered = 'off';
         if ($rerank && $this->reranker) {
-            try {
-                $hits = self::timed($ms, 'rerank', fn () => $this->reranker->rerank($query, $hits));
-                $reordered = 'done';
-            } catch (\Exception) {
-                $reordered = 'failed'; // e.g. the reorder model is not on this host: the search itself still stands
+            // One at a time: a reorder holds the CPU for about a minute, and queued ones would take every web worker.
+            $lock = $this->locks?->createLock('rerank', 300);
+            if ($lock && !$lock->acquire()) {
+                $reordered = 'busy';
+            } else {
+                try {
+                    $hits = self::timed($ms, 'rerank', fn () => $this->reranker->rerank($query, $hits));
+                    $reordered = 'done';
+                } catch (\Exception) {
+                    $reordered = 'failed'; // e.g. the reorder model is not on this host: the search itself still stands
+                } finally {
+                    $lock?->release();
+                }
             }
         }
 
@@ -137,6 +148,27 @@ final class Retriever
         arsort($scores); // stable: on a tie, the vector ranking's order wins
 
         return array_map(static fn ($id) => $hits[$id], array_keys($scores));
+    }
+
+    /**
+     * Inlined includes repeat option text word for word on many pages (`payload` 76 times), so one question could
+     * fill the top 10 with the same paragraph. Later copies move behind everything else; none is dropped.
+     * Measured: no loss in the top 10 on any set. Capping hits per page was also tried and rejected: it won on
+     * tuning and lost 3 held-out questions in the top 10.
+     *
+     * @param list<Hit> $hits
+     *
+     * @return list<Hit>
+     */
+    private static function demoteRepeats(array $hits): array
+    {
+        $first = $repeats = $seen = [];
+        foreach ($hits as $hit) {
+            isset($seen[$hit['text']]) ? $repeats[] = $hit : $first[] = $hit;
+            $seen[$hit['text']] = true;
+        }
+
+        return [...$first, ...$repeats];
     }
 
     private static function hit(VectorDocumentInterface $document): array

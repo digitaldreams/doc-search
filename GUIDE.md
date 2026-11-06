@@ -14,8 +14,11 @@ Reworded questions, the hard case. They were written to avoid the wording of the
 |---|---:|---:|
 | Keywords only (BM25) | 54% | 55% |
 | Symfony AI's built-in hybrid query | 5% | 0% |
-| **This app** | **88%** | **83%** |
-| This app, reordered by a local LLM (about 55 s per question) | 93% | 83% |
+| **This app** | **89%** | **83%** |
+| This app, reordered by a local LLM (about 55 s per question) | 95% | 83% |
+| This app, answer anywhere on a returned page (one click through the hit's link) | 100% | 87% |
+
+On reworded questions "This app" and plain vector search score the same: the router only adds keywords for code-shaped or very short queries. The 89% is Symfony AI's `VectorQuery` with embeddinggemma-2; the custom code earns its keep on identifiers (top 1: 65% to 85% fresh, 70% to 80% held-out).
 
 Exact identifiers such as `PhpArrayAdapter` or `max_host_connections`:
 
@@ -39,7 +42,7 @@ Cost and speed:
 | Whole search | median 126-129 ms on the LAN host, 89-93 ms on the laptop |
 | Per-query cost | none beyond electricity |
 
-**What this does not show.** Reworded recall is good, not exact: on these sets 12-17% of reworded questions do not reach the top 10. I wrote the questions myself and have looked at them more than once. With 57 questions, one question moves a score by about 2 points. Treat this as honest engineering evidence, not a published benchmark.
+**What this does not show.** Reworded recall is good, not exact: on these sets 11-17% of reworded questions do not reach the top 10. In about half of those misses the hit's page holds the answer, only in a different chunk. I wrote the questions myself and have looked at them more than once. With 57 questions, one question moves a score by about 2 points. Treat this as honest engineering evidence, not a published benchmark.
 
 ## 2. Architecture
 
@@ -190,7 +193,9 @@ A question that was asked before keeps its vector, so vector search still works 
 
 ### Step 1. Define "found" before building anything
 
-Hit = a top-k result from an accepted page that literally contains the answer string.
+Hit = a top-k result from an accepted page that literally contains the answer string. "Accepted page" means the whole path matches the question's regex: an earlier version anchored only the end, so `lock\.rst` also accepted `components/clock.rst` (31 of 244 questions affected, one held-out question credited at rank 1 from the wrong page).
+
+A second, looser number is reported next to it: a page hit, where the answer is anywhere on the hit's page. It is what a reader gets by following the hit's link to symfony.com, and it shows how many misses are the right page with the wrong chunk.
 
 This matters because the definition does not depend on how pages were chunked, so different chunkers can be compared fairly. It also fails when an answer was split across two chunks, which is exactly the failure a chunker must not cause.
 
@@ -270,13 +275,17 @@ Everything below was measured. Most of it lost.
 
 | Idea | Result | Decision |
 |---|---|---|
-| LLM rerank of top 20 (gemma4) | Top 5 on fresh 84% to 93%, held-out 72% to 79%; top 1 on fresh 49% to 58%, held-out 43% to 57%; 54-56 s per query on CPU. Held-out top 10 stays at 83% because the answer was never in the 20 it reads | Opt-in button |
+| LLM rerank of top 20 (gemma4) | Top 5 on fresh 84% to 95%, held-out 72% to 79%; top 1 on fresh 49% to 60%, held-out 40% to 53%; 53-55 s per query on CPU. Held-out top 10 stays at 83% because the answer was never in the 20 it reads. Identifiers: top 1 fresh 85% to 80% (one question drops to top 3), top 3 held-out 90% to 100% | Opt-in button |
 | LLM rerank with a faster model (lfm3) | Lowered held-out top 5 from 72% to 68% | Rejected |
 | LLM rerank of top 50 | About 2 minutes per query | Rejected |
 | HyDE: embed an LLM's imagined answer | gemma4: better top ranks, worse top 10 on held-out (81%), 12 s per query. lfm3: lost on held-out | Rejected |
 | LLM-written questions per chunk at index time | Looked like 96.5% with rivals barely expanded. With the top-20 rivals expanded too, 91%/83%, and top 5 down on held-out. About 8.5 hours of LLM time | Rejected |
 | Several vectors per chunk | At most 1 extra question | Rejected |
 | Returning neighbouring chunks | 1 extra question at twice the tokens | Rejected |
+| Demote word-for-word repeats (an included option such as `payload` appears on 76 pages) | Fresh top 10 87.7% to 89.5%, held-out unchanged, tuning top 20 down 1 question; no repeat paragraph fills the list | Kept |
+| At most 3 hits per page, the rest moved down | Tuning top 10 85.5% to 88.7%, but held-out 83.0% to 76.6% and one identifier lost: the answer is often the 4th chunk of a page | Rejected |
+| Fuse BM25 into long questions with a low weight (0.03 to 1, or only its top 1-3) | Every variant lost at top 1-5 on tuning, none gained at top 10 | Rejected |
+| Drop the `contributing/` pages | One held-out question at top 20, nothing in the top 10; would break chunk parity with Python | Rejected |
 | A larger model (qwen3) | 30 tokens/s against 400-500, about 10 hours for the corpus. Stopped before a result, to stay on embeddinggemma-2 | Not measured |
 
 The question-expansion result is worth remembering. A partial experiment flatters itself: if only the correct chunk gets extra text, of course it ranks higher. Give its rivals the same treatment before believing the gain.
@@ -302,7 +311,7 @@ Identical ids also meant the vectors could ship with the app (`data/seed_vectors
 |---|---:|---:|
 | `HybridQuery` | 5% | 0% |
 | `TextQuery` | 5% | 0% |
-| This app | 88% | 83% |
+| This app | 89% | 83% |
 
 Reading the store's SQL explains it. `plainto_tsquery` ANDs every word, and `WHERE ... @@` then discards every row that lacks one of them. A reworded question has words the page does not, so no row survives, and the vector half never gets a say:
 
@@ -339,12 +348,13 @@ An exact scan of ten times the rows (63,700) took 232 ms, about as long as embed
 `php bin/phpunit`: unit tests for pure logic, feature tests against a real Postgres, and a fake model.
 
 - **Chunker:** parity with Python across the full corpus, plus each parsing rule.
-- **Retriever:** exact RRF order, rare terms beat common ones, identifiers stay one term, quotes in a query are data.
+- **Retriever:** exact RRF order, rare terms beat common ones, identifiers stay one term, quotes in a query are data, a repeated paragraph moves behind different ones.
+- **Measurement:** the file regex must match the whole path; a page hit counts the answer anywhere on the page; a rerank run whose reorder was busy or failed is refused instead of saved.
 - **ChunkIndex:** shipped vectors cost no model calls, a second sync does nothing, a docs path with no chunks cannot wipe the index, short or wrong-sized model replies are refused.
 - **Embedder:** model-card format, unit length, saved-vector fallback when the host is down.
 - **Reranker:** only integers are read from the reply, so an injected instruction changes nothing but order.
-- **Web:** 400 for empty, overlong or non-string input before any model call; 403 when another site makes the browser call `/search`.
-- **Failure paths:** a host that accepts a connection and never answers is given up on (15 s in the app, 1 s in the test); a failed reorder keeps the original order and says so; an index built with another model refuses new vectors instead of mixing two vector spaces.
+- **Web:** 400 for empty, overlong or non-string input before any model call; 403 when another site makes the browser call `/search`; each hit links to its section on symfony.com.
+- **Failure paths:** a host that accepts a connection and never answers is given up on (15 s in the app, 1 s in the test); a failed reorder keeps the original order and says so; only one reorder runs at a time (`symfony/lock`), a second one keeps the original order and says so instead of taking a web worker for a minute; an index built with another model refuses new vectors instead of mixing two vector spaces.
 
 The LLM's quality is measured by `app:docs:eval`, not asserted in tests. The tests cover everything deterministic around it.
 
@@ -359,7 +369,7 @@ The LLM's quality is measured by `app:docs:eval`, not asserted in tests. The tes
 
 ## 7. For the interview
 
-**The pitch.** "A 303 MB model on an ordinary CPU finds the right passage for reworded questions 83-88% of the time in the top 10, where keyword search manages about 55%. It runs in Postgres with Symfony AI, with no cloud API and no per-query cost. And I can show you how I know."
+**The pitch.** "A 303 MB model on an ordinary CPU finds the right passage for reworded questions 83-89% of the time in the top 10, where keyword search manages about 55%. It runs in Postgres with Symfony AI, with no cloud API and no per-query cost. And I can show you how I know."
 
 **The demo, in five minutes.**
 

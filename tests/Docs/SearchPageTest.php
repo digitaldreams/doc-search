@@ -45,6 +45,23 @@ final class SearchPageTest extends WebTestCase
         self::assertSame('off', $data['meaning']['rerank']);
     }
 
+    public function testEachHitLinksToItsSectionOnSymfonyCom(): void
+    {
+        $client = self::createClient();
+        $c = self::getContainer();
+        $c->get(Connection::class)->executeStatement('TRUNCATE chunks, chunk_terms, query_vectors');
+        $c->get(ChunkIndex::class)->store([
+            ['id' => 'a', 'file' => 'mailer.rst', 'path' => ['Sending Emails with Mailer', 'Using a 3rd Party Transport'], 'text' => 'mailer transport', 'source' => 's'],
+            ['id' => 'b', 'file' => 'reference/constraints/Time.rst', 'path' => ['Time'], 'text' => 'mailer time', 'source' => 's'],
+        ], [FakeEmbeddings::vector('mailer transport'), FakeEmbeddings::vector('mailer time')]);
+        $client->request('GET', '/search', ['q' => 'mailer']);
+
+        $urls = array_column(json_decode($client->getResponse()->getContent(), true)['words']['hits'], 'url', 'file');
+        // anchors are the heading slugs symfony.com uses; a page's own title needs none
+        self::assertSame('https://symfony.com/doc/current/mailer.html#using-a-3rd-party-transport', $urls['mailer.rst']);
+        self::assertSame('https://symfony.com/doc/current/reference/constraints/Time.html', $urls['reference/constraints/Time.rst']);
+    }
+
     public function testAnotherSiteCannotMakeTheBrowserRunASearch(): void
     {
         $client = self::createClient();

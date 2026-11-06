@@ -77,6 +77,18 @@ final class SearchController extends AbstractController
 
     private static function view(array $hit): array
     {
-        return ['file' => $hit['file'], 'path' => implode(' > ', $hit['path']), 'source' => $hit['source']];
+        return ['file' => $hit['file'], 'path' => implode(' > ', $hit['path']), 'source' => $hit['source'], 'url' => self::url($hit)];
+    }
+
+    /**
+     * The hit's section on symfony.com, so a reader whose chunk holds only part of the answer can read on.
+     * ponytail: heading slug matched 310 of 312 live anchors checked; a missing anchor still opens the page.
+     */
+    private static function url(array $hit): string
+    {
+        $url = 'https://symfony.com/doc/current/'.preg_replace('/\.rst$/', '.html', $hit['file']);
+        $section = \count($hit['path']) > 1 ? trim(preg_replace('/[^a-z0-9]+/', '-', strtolower(end($hit['path']))), '-') : '';
+
+        return '' !== $section ? "$url#$section" : $url;
     }
 }

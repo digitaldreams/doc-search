@@ -55,6 +55,9 @@ final class ChunkerTest extends TestCase
             $actual[] = implode("\t", [$c['id'], $c['file'], sha1($c['source'])]);
         }
 
+        // order is not compared: the index is keyed by id, and Finder's walk order differs from Python's
+        sort($expected);
+        sort($actual);
         self::assertCount(6370, $actual);
         self::assertSame($expected, $actual);
     }

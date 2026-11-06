@@ -7,6 +7,7 @@ use Symfony\AI\Platform\Capability;
 use Symfony\AI\Platform\Message\Message;
 use Symfony\AI\Platform\Message\MessageBag;
 use Symfony\AI\Platform\PlatformInterface;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 /**
  * Optional second pass: a local LLM reorders the top 20. Better top-5 on reworded questions, about 55s per query on CPU.
@@ -16,13 +17,19 @@ use Symfony\AI\Platform\PlatformInterface;
  */
 final class Reranker
 {
-    public const MODEL = 'gemma4:latest';
     private const POOL = 20;
     /** Free-form replies reasoned past any token cap before ranking anything; a schema forces an answer. */
     private const FORMAT = ['type' => 'object', 'properties' => ['best' => ['type' => 'array', 'items' => ['type' => 'integer']]], 'required' => ['best']];
 
-    public function __construct(private readonly PlatformInterface $platform)
-    {
+    /**
+     * @param int $contextTokens the 20 excerpts and the question take about 3k tokens; Ollama's default may be
+     *                           the model's full 131k, which a CPU host pays for in memory and load time
+     */
+    public function __construct(
+        private readonly PlatformInterface $platform,
+        #[Autowire('%env(RERANK_MODEL)%')] private readonly string $model = 'gemma4:latest',
+        #[Autowire('%env(int:RERANK_NUM_CTX)%')] private readonly int $contextTokens = 8192,
+    ) {
     }
 
     /**
@@ -43,9 +50,9 @@ final class Reranker
             .implode("\n\n", $excerpts)."\n\nQuestion: $query\n\nList the numbers of the 5 excerpts most likely to answer the question, best first.";
 
         $reply = $this->platform->invoke(
-            new Ollama(self::MODEL, [Capability::INPUT_MESSAGES]),
+            new Ollama($this->model, [Capability::INPUT_MESSAGES]),
             new MessageBag(Message::ofUser($prompt)),
-            ['format' => self::FORMAT, 'think' => false, 'num_predict' => 60, 'temperature' => 0, 'num_ctx' => 8192],
+            ['format' => self::FORMAT, 'think' => false, 'num_predict' => 60, 'temperature' => 0, 'num_ctx' => $this->contextTokens],
         )->asText();
 
         preg_match_all('/\d+/', $reply, $m);

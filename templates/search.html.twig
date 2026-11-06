@@ -164,7 +164,9 @@ function fill(col, data, answer, known, how) {
     li.append(el('span', 'pos', String(i + 1)));
     const body = el('div', 'hit'), det = el('details'), sum = el('summary', '', hit.path || hit.file);
     det.append(sum, el('pre', '', hit.source));
-    body.append(det, el('div', 'preview', hit.source), el('span', 'file', hit.file));
+    const link = el('a', 'file', hit.file + ' ↗');
+    link.href = hit.url; link.target = '_blank'; link.rel = 'noopener';
+    body.append(det, el('div', 'preview', hit.source), link);
     li.append(body);
     list.append(li);
   });
@@ -187,7 +189,8 @@ async function run(q, rerank) {
     rerankBtn.hidden = m.mode === 'keyword';
     say(m.embedding === 'saved' ? 'Model host unreachable. This question uses its vector saved from an earlier run.'
       : m.embedding === 'none' ? 'Model host unreachable and this question has no saved vector, so vector search could not run.'
-      : m.rerank === 'failed' ? 'The reorder model did not answer on this host, so these are in their original order.' : '');
+      : m.rerank === 'failed' ? 'The reorder model did not answer on this host, so these are in their original order.'
+      : m.rerank === 'busy' ? 'Another reorder is running on this machine, so these are in their original order. Try again in a minute.' : '');
   } catch (e) {
     say('The search request failed. Check that the app is still running, then search again.');
   } finally {

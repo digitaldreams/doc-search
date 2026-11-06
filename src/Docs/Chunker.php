@@ -2,6 +2,8 @@
 
 namespace App\Docs;
 
+use Symfony\Component\Finder\Finder;
+
 /**
  * Turns Symfony's reStructuredText docs into chunks for embeddinggemma-2.
  *
@@ -55,22 +57,12 @@ final class Chunker
     /** @return list<Chunk> */
     public function chunkTree(string $root, int $maxTokens = 512): array
     {
+        // dot files/dirs are skipped by Finder's default; `_*` files and dirs are includes and build output
+        $files = Finder::create()->files()->in($root)->name('*.rst')->notPath('#(^|/)_#')->sortByName();
         $out = [];
-        $walk = function (string $dir) use (&$walk, &$out, $root, $maxTokens): void {
-            $names = scandir("$root/$dir") ?: [];
-            sort($names, \SORT_STRING);
-            foreach ($names as $n) {
-                if (str_ends_with($n, '.rst') && !str_starts_with($n, '_') && is_file("$root/$dir/$n")) {
-                    array_push($out, ...$this->chunkFile(ltrim("$dir/$n", '/'), $root, $maxTokens));
-                }
-            }
-            foreach ($names as $n) {
-                if (!str_starts_with($n, '.') && !str_starts_with($n, '_') && is_dir("$root/$dir/$n")) {
-                    $walk(ltrim("$dir/$n", '/'));
-                }
-            }
-        };
-        $walk('');
+        foreach ($files as $file) {
+            array_push($out, ...$this->chunkFile($file->getRelativePathname(), $root, $maxTokens));
+        }
 
         return $out;
     }
@@ -259,7 +251,8 @@ final class Chunker
     }
 
     /**
-     * Heading level = first-seen order of its adornment, per RST rules.
+     * Split a file into sections, each with its heading breadcrumb.
+     * A heading's level is the order its adornment style first appears, per RST rules.
      *
      * @param list<string> $lines
      *
@@ -267,43 +260,68 @@ final class Chunker
      */
     private function sections(array $lines): array
     {
-        $out = $order = $stack = $path = $body = [];
+        $sections = [];
+        $styles = [];   // adornment styles in first-seen order: index = level
+        $open = [];     // level => title of each heading above the current line
+        $body = [];
         for ($i = 0; $i < \count($lines);) {
-            $line = $lines[$i];
-            $next = $lines[$i + 1] ?? '';
-            $next2 = $lines[$i + 2] ?? '';
-            $title = $key = null;
-            $skip = 0;
-            if (preg_match(self::ADORN, $line) && !self::blank($next) && self::rstrip($next2) === self::rstrip($line)
-                && mb_strlen(self::rstrip($line)) >= mb_strlen(self::strip($next))) {
-                [$title, $key, $skip] = [self::strip($next), $line[0].'over', 3];
-            } elseif (!self::blank($line) && !self::startsWithSpace($line) && !preg_match(self::ADORN, $line) && preg_match(self::ADORN, $next)
-                && mb_strlen(self::rstrip($next)) >= mb_strlen(self::rstrip($line))) {
-                [$title, $key, $skip] = [self::strip($line), $next[0].'under', 2];
-            }
-            if (null === $title) {
-                $body[] = $line;
-                ++$i;
+            $heading = self::heading($lines, $i);
+            if (null === $heading) {
+                $body[] = $lines[$i++];
                 continue;
             }
-            if ($path || array_filter($body, static fn ($x) => !self::blank($x))) {
-                $out[] = [$path, $body];
-            }
-            if (!\in_array($key, $order, true)) {
-                $order[] = $key;
-            }
-            $level = array_search($key, $order, true);
-            while ($stack && end($stack)[0] >= $level) {
-                array_pop($stack);
-            }
-            $stack[] = [$level, self::inline($title)];
-            $path = array_column($stack, 1);
-            $body = [];
-            $i += $skip;
-        }
-        $out[] = [$path, $body];
+            [$title, $style, $height] = $heading;
 
-        return $out;
+            $hasContent = array_filter($body, static fn ($line) => !self::blank($line));
+            if ($open || $hasContent) { // skip an empty preamble before the first heading
+                $sections[] = [array_values($open), $body];
+            }
+
+            $level = array_search($style, $styles, true);
+            if (false === $level) {
+                $styles[] = $style;
+                $level = array_key_last($styles);
+            }
+            // a heading closes every open heading at its level or deeper
+            $open = array_filter($open, static fn ($l) => $l < $level, \ARRAY_FILTER_USE_KEY);
+            $open[$level] = self::inline($title);
+
+            $body = [];
+            $i += $height;
+        }
+        $sections[] = [array_values($open), $body];
+
+        return $sections;
+    }
+
+    /**
+     * The heading starting at line $i, if there is one.
+     *
+     * @param list<string> $lines
+     *
+     * @return array{string, string, int}|null title, adornment style, lines it spans
+     */
+    private static function heading(array $lines, int $i): ?array
+    {
+        [$line, $next, $after] = [$lines[$i], $lines[$i + 1] ?? '', $lines[$i + 2] ?? ''];
+        $isAdornment = static fn (string $s): bool => 1 === preg_match(self::ADORN, $s);
+
+        // =====
+        // Title
+        // =====
+        if ($isAdornment($line) && !self::blank($next) && self::rstrip($after) === self::rstrip($line)
+            && mb_strlen(self::rstrip($line)) >= mb_strlen(self::strip($next))) {
+            return [self::strip($next), $line[0].'over', 3];
+        }
+
+        // Title
+        // =====
+        if (!self::blank($line) && !self::startsWithSpace($line) && !$isAdornment($line) && $isAdornment($next)
+            && mb_strlen(self::rstrip($next)) >= mb_strlen(self::rstrip($line))) {
+            return [self::strip($line), $next[0].'under', 2];
+        }
+
+        return null;
     }
 
     /**

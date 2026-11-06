@@ -13,6 +13,20 @@ final class EmbedderTest extends SearchTestCase
         self::assertEqualsWithDelta(1.0, sqrt(array_sum(array_map(static fn ($x) => $x * $x, $query['vector']))), 1e-9);
     }
 
+    public function testTheConfiguredModelIsTheOneCalled(): void
+    {
+        $names = [];
+        $platform = \Symfony\AI\Platform\Test\MockPlatformFactory::createPlatform(static function ($model) use (&$names) {
+            $names[] = $model->getName();
+
+            return new \Symfony\AI\Platform\Result\VectorResult([new \Symfony\AI\Platform\Vector\Vector(FakeEmbeddings::vector('x'))]);
+        });
+
+        (new \App\Docs\Embedder($platform, $this->db, '', model: 'my-embedder'))->query('x');
+
+        self::assertSame(['my-embedder'], $names);
+    }
+
     public function testASavedVectorAnswersWhenTheHostIsUnreachableAndSaysSo(): void
     {
         $saved = $this->embedder()->query('known question')['vector'];

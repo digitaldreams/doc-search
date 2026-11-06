@@ -25,12 +25,24 @@ final class TestSetTest extends TestCase
         self::assertNull(TestSet::rank($q, [self::hit('security.rst', 'nothing')]));
     }
 
-    public function testFileRegexIsAnchoredAtTheEndOnly(): void
+    public function testFileRegexMustMatchTheWholePath(): void
     {
-        $q = self::question('cache\.rst', 'a');
+        // Anchored at the end only, `lock\.rst` accepted components/clock.rst and `security\.rst` the config reference.
+        self::assertNull(TestSet::rank(self::question('lock\.rst', 'a'), [self::hit('components/clock.rst', 'a')]));
+        self::assertNull(TestSet::rank(self::question('security\.rst', 'a'), [self::hit('reference/configuration/security.rst', 'a')]));
+        self::assertNull(TestSet::rank(self::question('cache\.rst', 'a'), [self::hit('cache.rst.bak', 'a')]));
+        self::assertSame(1, TestSet::rank(self::question('reference/constraints/.*\.rst', 'a'), [self::hit('reference/constraints/Time.rst', 'a')]));
+    }
 
-        self::assertSame(1, TestSet::rank($q, [self::hit('components/cache.rst', 'a')]));
-        self::assertNull(TestSet::rank($q, [self::hit('cache.rst.bak', 'a')]));
+    public function testAPageHitIsAnyChunkOfAnAcceptedPageThatHoldsTheAnswer(): void
+    {
+        $q = self::question('reference/constraints/.*\.rst', '`withSeconds`');
+        $pages = ['reference/constraints/Time.rst' => "Time\nwithSeconds\ntype: boolean", 'reference/constraints/Date.rst' => 'Date'];
+        $hits = [self::hit('reference/constraints/Date.rst', 'Date'), self::hit('reference/constraints/Time.rst', 'Time title chunk')];
+
+        self::assertNull(TestSet::rank($q, $hits));          // the chunk shown lacks the answer
+        self::assertSame(2, TestSet::pageRank($q, $hits, $pages)); // but its page has it, one click away
+        self::assertNull(TestSet::pageRank(self::question('lock\.rst', 'withSeconds'), [self::hit('components/clock.rst', 'x')], ['components/clock.rst' => 'withSeconds']));
     }
 
     public function testMarkupAndWhitespaceDoNotAffectMatching(): void

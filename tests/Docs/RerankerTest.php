@@ -64,4 +64,32 @@ final class RerankerTest extends TestCase
         self::assertStringNotContainsString(str_repeat('é', 501), $seen);
         self::assertStringContainsString('Question: my question\n', $seen);
     }
+
+    public function testContextSizeComesFromTheConstructor(): void
+    {
+        $options = null;
+        $platform = MockPlatformFactory::createPlatform(static function ($model, $input, $opts) use (&$options) {
+            $options = $opts;
+
+            return '{"best":[1]}';
+        });
+
+        (new Reranker($platform, contextTokens: 16384))->rerank('q', $this->hits(1));
+
+        self::assertSame(16384, $options['num_ctx']);
+    }
+
+    public function testTheConfiguredModelIsTheOneCalled(): void
+    {
+        $name = null;
+        $platform = MockPlatformFactory::createPlatform(static function ($model) use (&$name) {
+            $name = $model->getName();
+
+            return '{"best":[1]}';
+        });
+
+        (new Reranker($platform, model: 'my-reranker'))->rerank('q', $this->hits(1));
+
+        self::assertSame('my-reranker', $name);
+    }
 }

@@ -38,6 +38,17 @@ final class ChunkIndexTest extends SearchTestCase
         self::assertSame(self::axis(7)[7], (float) json_decode($this->db->fetchOne('SELECT embedding FROM chunks'), true)[7]);
     }
 
+    public function testShippedVectorsAreIgnoredWhenAnotherEmbeddingModelIsConfigured(): void
+    {
+        $seed = $this->seedFile(['aaaaaaaaaaaaaaaa' => self::axis(7)]);
+        $index = new ChunkIndex(new Embedder(FakeEmbeddings::platform(), $this->db, '', model: 'other-embedder'), $this->store, $this->db);
+
+        $stats = $index->sync([self::chunk('aaaaaaaaaaaaaaaa', 'seeded')], $seed);
+
+        self::assertSame(['seeded' => 0, 'embedded' => 1, 'removed' => 0, 'kept' => 0], $stats);
+        self::assertSame('other-embedder', $this->db->fetchOne('SELECT model FROM index_meta'));
+    }
+
     public function testAChunkWithNoShippedVectorIsEmbeddedInTheDocumentFormat(): void
     {
         $stats = $this->index()->sync([self::chunk('bbbbbbbbbbbbbbbb', 'new words', ['Top', 'Sub'])], $this->seedFile([]));
@@ -88,7 +99,7 @@ final class ChunkIndexTest extends SearchTestCase
     {
         $seed = $this->seedFile([]);
         $this->index()->sync([self::chunk('1111111111111111', 'old')], $seed);
-        self::assertSame(Embedder::MODEL, $this->db->fetchOne('SELECT model FROM index_meta'));
+        self::assertSame(Embedder::DEFAULT_MODEL, $this->db->fetchOne('SELECT model FROM index_meta'));
         $this->db->executeStatement('UPDATE index_meta SET model = ?', ['some-other-model']);
         FakeEmbeddings::$inputs = [];
 

@@ -45,10 +45,26 @@ final class TestSet
      */
     public static function rank(array $question, array $hits): ?int
     {
+        return self::first($question, $hits, static fn (array $hit) => implode(' ', $hit['path'])."\n".$hit['source']);
+    }
+
+    /**
+     * Like rank(), but the answer may be anywhere on the hit's page: what a reader finds by opening the page.
+     *
+     * @param array<string, string> $pages file => every chunk's breadcrumb and source on that page
+     */
+    public static function pageRank(array $question, array $hits, array $pages): ?int
+    {
+        return self::first($question, $hits, static fn (array $hit) => $pages[$hit['file']] ?? '');
+    }
+
+    /** @param callable(array): string $text */
+    private static function first(array $question, array $hits, callable $text): ?int
+    {
         $needle = self::normalize($question['needle']);
-        $file = '~'.str_replace('~', '\~', $question['file']).'$~D';
+        $file = '~^(?:'.str_replace('~', '\~', $question['file']).')$~D';
         foreach (\array_slice($hits, 0, 50) as $i => $hit) {
-            if (preg_match($file, $hit['file']) && str_contains(self::normalize(implode(' ', $hit['path'])."\n".$hit['source']), $needle)) {
+            if (preg_match($file, $hit['file']) && str_contains(self::normalize($text($hit)), $needle)) {
                 return $i + 1;
             }
         }
