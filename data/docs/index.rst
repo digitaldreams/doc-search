@@ -1,0 +1,98 @@
+.. _symfony2-documentation:
+
+Symfony Documentation
+=====================
+
+Quick Tour
+----------
+
+Get started fast with the `Symfony Quick Tour`_.
+
+Getting Started
+---------------
+
+.. toctree::
+    :maxdepth: 2
+
+    getting_started/index
+
+Topics
+------
+
+.. toctree::
+    :maxdepth: 1
+
+    best_practices
+    bundles
+    cache
+    console
+    doctrine
+    deployment
+    event_dispatcher
+    expression_language
+    forms
+    frontend
+    html_sanitizer
+    http_cache
+    http_client
+    lock
+    logging
+    mailer
+    mercure
+    messenger
+    migration
+    mime_types
+    notifier
+    performance
+    profiler
+    rate_limiter
+    routing
+    security
+    session
+    setup
+    serializer
+    service_container
+    testing
+    translation
+    tui
+    validation
+    web_link
+    webhook
+    workflow
+
+Components
+----------
+
+Symfony provides a set of decoupled and reusable PHP components that can be
+used independently in any project:
+
+.. toctree::
+    :maxdepth: 1
+
+    components/index
+
+Reference Documents
+-------------------
+
+Get answers quickly with reference documents:
+
+.. include:: /reference/map.rst.inc
+
+Contributing
+------------
+
+Contribute to Symfony:
+
+.. include:: /contributing/map.rst.inc
+
+Create Your Own Framework
+-------------------------
+
+Want to create your own framework based on Symfony?
+
+.. toctree::
+   :maxdepth: 2
+
+   create_framework/index
+
+.. _`Symfony Quick Tour`: https://symfony.com/tour

@@ -1,0 +1,5 @@
+framework:
+    http_client:
+        default_options:
+            # Idle timeout. A long rerank on a CPU host takes minutes; an unreachable host is caught sooner by Embedder.
+            timeout: 300

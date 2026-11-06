@@ -1,0 +1,385 @@
+.. _security-access-control-explanation:
+
+How Does the Security access_control Work?
+==========================================
+
+For each incoming request, Symfony checks each ``access_control`` entry
+to find *one* that matches the current request. As soon as it finds a matching
+``access_control`` entry, it stops - only the **first** matching ``access_control``
+is used to enforce access.
+
+Each ``access_control`` has several options that configure two different
+things:
+
+#. :ref:`should the incoming request match this access control entry <security-access-control-matching-options>`
+#. :ref:`once it matches, should some sort of access restriction be enforced <security-access-control-enforcement-options>`:
+
+.. _security-access-control-matching-options:
+
+1. Matching Options
+-------------------
+
+Symfony uses :class:`Symfony\\Component\\HttpFoundation\\ChainRequestMatcher` for
+each ``access_control`` entry, which determines which implementation of
+:class:`Symfony\\Component\\HttpFoundation\\RequestMatcherInterface` should be used
+on this request. The following ``access_control`` options are used for matching:
+
+* ``path``: a regular expression (without delimiters)
+* ``ip`` or ``ips``: netmasks are also supported (can be a comma-separated string)
+* ``port``: an integer
+* ``host``: a regular expression
+* ``methods``: one or many HTTP methods
+* ``request_matcher``: a service implementing ``RequestMatcherInterface``
+* ``attributes``: an array, which can be used to specify one or more :ref:`request attributes <accessing-request-data>` that must match exactly
+* ``route``: a route name
+
+Take the following ``access_control`` entries as an example:
+
+.. configuration-block::
+
+    .. code-block:: yaml
+
+        # config/packages/security.yaml
+        parameters:
+            env(TRUSTED_IPS): '10.0.0.1, 10.0.0.2'
+
+        security:
+            # ...
+            access_control:
+                - { path: '^/admin', roles: ROLE_USER_PORT, ip: 127.0.0.1, port: 8080 }
+                - { path: '^/admin', roles: ROLE_USER_IP, ip: 127.0.0.1 }
+                - { path: '^/admin', roles: ROLE_USER_HOST, host: symfony\.com$ }
+                - { path: '^/admin', roles: ROLE_USER_METHOD, methods: [POST, PUT] }
+
+                # ips can be comma-separated, which is especially useful when using env variables
+                - { path: '^/admin', roles: ROLE_USER_IP, ips: '%env(TRUSTED_IPS)%' }
+                - { path: '^/admin', roles: ROLE_USER_IP, ips: [127.0.0.1, ::1, '%env(TRUSTED_IPS)%'] }
+
+                # for custom matching needs, use a request matcher service
+                - { roles: ROLE_USER, request_matcher: App\Security\RequestMatcher\MyRequestMatcher }
+
+                # require ROLE_ADMIN for 'admin' route. You can use the shortcut "route: "xxx", instead of "attributes": ["_route": "xxx"]
+                - { attributes: {'_route': 'admin'}, roles: ROLE_ADMIN }
+                - { route: 'admin', roles: ROLE_ADMIN }
+
+    .. code-block:: php
+
+        // config/packages/security.php
+        namespace Symfony\Component\DependencyInjection\Loader\Configurator;
+
+        use App\Security\RequestMatcher\MyRequestMatcher;
+
+        return App::config([
+            'parameters' => [
+                'env(TRUSTED_IPS)' => '10.0.0.1, 10.0.0.2',
+            ],
+            'security' => [
+                'access_control' => [
+                    ['path' => '^/admin', 'roles' => 'ROLE_USER_PORT', 'ips' => ['127.0.0.1'], 'port' => 8080],
+                    ['path' => '^/admin', 'roles' => 'ROLE_USER_IP', 'ips' => ['127.0.0.1']],
+                    ['path' => '^/admin', 'roles' => 'ROLE_USER_HOST', 'host' => 'symfony\.com$'],
+                    ['path' => '^/admin', 'roles' => 'ROLE_USER_METHOD', 'methods' => ['POST', 'PUT']],
+
+                    // ips can be comma-separated, which is especially useful when using env variables
+                    ['path' => '^/admin', 'roles' => 'ROLE_USER_IP', 'ips' => env('TRUSTED_IPS')],
+                    ['path' => '^/admin', 'roles' => 'ROLE_USER_IP', 'ips' => ['127.0.0.1', '::1', env('TRUSTED_IPS')]],
+
+                    // for custom matching needs, use a request matcher service
+                    ['roles' => 'ROLE_USER', 'request_matcher' => MyRequestMatcher::class],
+
+                    // require ROLE_ADMIN for 'admin' route. You can use the shortcut "route: "xxx", instead of "attributes": ["_route": "xxx"]
+                    ['attributes' => ['_route' => 'admin'], 'roles' => 'ROLE_ADMIN'],
+                    ['route' => 'admin', 'roles' => 'ROLE_ADMIN'],
+                ],
+            ],
+        ]);
+
+For each incoming request, Symfony will decide which ``access_control``
+to use based on the URI, the client's IP address, the incoming host name,
+and the request method. Remember, the first rule that matches is used, and
+if ``ip``, ``port``, ``host`` or ``method`` are not specified for an entry, that
+``access_control`` will match any ``ip``, ``port``, ``host`` or ``method``.
+See the following examples:
+
+Example #1:
+  * **URI** ``/admin/user``
+  * **IP**: ``127.0.0.1``, **Port**: ``80``, **Host**: ``example.com``, **Method**: ``GET``
+  * **Rule applied**: rule #2 (``ROLE_USER_IP``)
+  * **Why?** The URI matches ``path`` and the IP matches ``ip``.
+Example #2:
+  * **URI** ``/admin/user``
+  * **IP**: ``127.0.0.1``, **Port**: ``80``, **Host**: ``symfony.com``, **Method**: ``GET``
+  * **Rule applied**: rule #2 (``ROLE_USER_IP``)
+  * **Why?** The ``path`` and ``ip`` still match. This would also match the
+    ``ROLE_USER_HOST`` entry, but *only* the **first** ``access_control`` match is used.
+Example #3:
+  * **URI** ``/admin/user``
+  * **IP**: ``127.0.0.1``, **Port**: ``8080``, **Host**: ``symfony.com``, **Method**: ``GET``
+  * **Rule applied**: rule #1 (``ROLE_USER_PORT``)
+  * **Why?** The ``path``, ``ip`` and ``port`` match.
+Example #4:
+  * **URI** ``/admin/user``
+  * **IP**: ``168.0.0.1``, **Port**: ``80``, **Host**: ``symfony.com``, **Method**: ``GET``
+  * **Rule applied**: rule #3 (``ROLE_USER_HOST``)
+  * **Why?** The ``ip`` matches neither the first rule nor the second rule.
+  * So the third rule (which matches) is used.
+Example #5:
+  * **URI** ``/admin/user``
+  * **IP**: ``168.0.0.1``, **Port**: ``80``, **Host**: ``symfony.com``, **Method**: ``POST``
+  * **Rule applied**: rule #3 (``ROLE_USER_HOST``)
+  * **Why?** The third rule still matches. This would also match the fourth rule
+  * (``ROLE_USER_METHOD``), but only the **first** matched ``access_control`` is used.
+Example #6:
+  * **URI** ``/admin/user``
+  * **IP**: ``168.0.0.1``, **Port**: ``80``, **Host**: ``example.com``, **Method**: ``POST``
+  * **Rule applied**: rule #4 (``ROLE_USER_METHOD``)
+  * **Why?** The ``ip`` and ``host`` don't match the first three entries, but
+  * the fourth - ``ROLE_USER_METHOD`` - matches and is used.
+Example #7:
+  * **URI** ``/foo``
+  * **IP**: ``127.0.0.1``, **Port**: ``80``, **Host**: ``symfony.com``, **Method**: ``POST``
+  * **Rule applied**: matches no entries
+  * **Why?** This doesn't match any ``access_control`` rules, since its URI
+  * doesn't match any of the ``path`` values.
+
+.. warning::
+
+    Matching the URI is done without ``$_GET`` parameters.
+    :ref:`Deny access in PHP code <security-securing-controller>` if you want
+    to disallow access based on ``$_GET`` parameter values.
+
+.. _security-access-control-enforcement-options:
+
+2. Access Enforcement
+---------------------
+
+Once Symfony has decided which ``access_control`` entry matches (if any),
+it then *enforces* access restrictions based on the ``roles``, ``allow_if`` and ``requires_channel``
+options:
+
+* ``roles`` If the user does not have the given role, then access is denied
+  (internally, an :class:`Symfony\\Component\\Security\\Core\\Exception\\AccessDeniedException`
+  is thrown).
+
+* ``allow_if`` If the expression returns false, then access is denied;
+
+* ``requires_channel`` If the incoming request's channel (e.g. ``http``)
+  does not match this value (e.g. ``https``), the user will be redirected
+  (e.g. redirected from ``http`` to ``https``, or vice versa).
+
+.. tip::
+
+    Internally, the array value of ``roles`` is passed as the
+    ``$attributes`` argument to each voter in the application with the
+    :class:`Symfony\\Component\\HttpFoundation\\Request` as ``$subject``. You
+    can learn how to use your custom attributes by reading
+    :ref:`security/custom-voter`.
+
+.. warning::
+
+    If you define both ``roles`` and ``allow_if``, and your Access Decision
+    Strategy is the default one (``affirmative``), then the user will be granted
+    access if there's at least one valid condition. If this behavior doesn't fit
+    your needs, :ref:`change the Access Decision Strategy <security-voters-change-strategy>`.
+
+.. tip::
+
+    If access is denied, the system will try to authenticate the user if not
+    already (e.g. redirect the user to the login page). If the user is already
+    logged in, the 403 "access denied" error page will be shown. See
+    :doc:`/controller/error_pages` for more information.
+
+Matching access_control By IP
+-----------------------------
+
+Certain situations may arise when you need to have an ``access_control``
+entry that *only* matches requests coming from some IP address or range.
+For example, this *could* be used to deny access to a URL pattern to all
+requests *except* those from a trusted, internal server.
+
+.. warning::
+
+    As you'll read in the explanation below the example, the ``ips`` option
+    does not restrict to a specific IP address. Instead, using the ``ips``
+    key means that the ``access_control`` entry will only match this IP address,
+    and users accessing it from a different IP address will continue down
+    the ``access_control`` list.
+
+Here is an example of how you configure some example ``/internal*`` URL
+pattern so that it is only accessible by requests from the local server itself:
+
+.. configuration-block::
+
+    .. code-block:: yaml
+
+        # config/packages/security.yaml
+        security:
+            # ...
+            access_control:
+                #
+                # the 'ips' option supports IP addresses and subnet masks
+                - { path: '^/internal', roles: PUBLIC_ACCESS, ips: [127.0.0.1, ::1, 192.168.0.1/24] }
+                - { path: '^/internal', roles: ROLE_NO_ACCESS }
+
+    .. code-block:: php
+
+        // config/packages/security.php
+        namespace Symfony\Component\DependencyInjection\Loader\Configurator;
+
+        return App::config([
+            'security' => [
+                'access_control' => [
+                    // the 'ips' option supports IP addresses and subnet masks
+                    ['path' => '^/internal', 'roles' => 'PUBLIC_ACCESS', 'ips' => ['127.0.0.1', '::1', '192.168.0.1/24']],
+                    ['path' => '^/internal', 'roles' => 'ROLE_NO_ACCESS'],
+                ],
+            ],
+        ]);
+
+Here is how it works when the path is ``/internal/something`` coming from
+the external IP address ``10.0.0.1``:
+
+* The first access control rule is ignored as the ``path`` matches but the
+  IP address does not match either of the IPs listed;
+
+* The second access control rule is enabled (the only restriction being the
+  ``path``) and so it matches. If you make sure that no users ever have
+  ``ROLE_NO_ACCESS``, then access is denied (``ROLE_NO_ACCESS`` can be anything
+  that does not match an existing role, it only serves as a trick to always
+  deny access).
+
+But if the same request comes from ``127.0.0.1`` or ``::1`` (the IPv6 loopback
+address):
+
+* Now, the first access control rule is enabled as both the ``path`` and the
+  ``ip`` match: access is allowed as the user always has the
+  ``PUBLIC_ACCESS`` role.
+
+* The second access rule is not examined as the first rule matched.
+
+.. _security-allow-if:
+
+Securing by an Expression
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Once an ``access_control`` entry is matched, you can deny access via the
+``roles`` key or use more complex logic with an expression in the ``allow_if``
+key:
+
+.. configuration-block::
+
+    .. code-block:: yaml
+
+        # config/packages/security.yaml
+        security:
+            # ...
+            access_control:
+                -
+                    path: ^/_internal/secure
+                    # the 'roles' and 'allow_if' options work like an OR expression, so
+                    # access is granted if the expression is TRUE or the user has ROLE_ADMIN
+                    roles: 'ROLE_ADMIN'
+                    allow_if: "'127.0.0.1' == request.getClientIp() or request.headers.has('X-Secure-Access')"
+
+    .. code-block:: php
+
+        // config/packages/security.php
+        namespace Symfony\Component\DependencyInjection\Loader\Configurator;
+
+        return App::config([
+            'security' => [
+                'access_control' => [
+                    [
+                        'path' => '^/_internal/secure',
+                        // the 'roles' and 'allow_if' options work like an OR expression, so
+                        // access is granted if the expression is TRUE or the user has ROLE_ADMIN
+                        'roles' => 'ROLE_ADMIN',
+                        'allow_if' => '"127.0.0.1" == request.getClientIp() or request.headers.has("X-Secure-Access")',
+                    ],
+                ],
+            ],
+        ]);
+
+In this case, when the user tries to access any URL starting with
+``/_internal/secure``, they will only be granted access if the IP address is
+``127.0.0.1`` or a secure header, or if the user has the ``ROLE_ADMIN`` role.
+
+.. note::
+
+    Internally ``allow_if`` triggers the built-in
+    :class:`Symfony\\Component\\Security\\Core\\Authorization\\Voter\\ExpressionVoter`
+    as like it was part of the attributes defined in the ``roles`` option.
+
+Inside the expression, you have access to a number of different variables
+and functions including ``request``, which is the Symfony
+:class:`Symfony\\Component\\HttpFoundation\\Request` object (see
+:ref:`component-http-foundation-request`).
+
+For a list of the other functions and variables, see
+:ref:`functions and variables <security-expression-variables>`.
+
+.. tip::
+
+    The ``allow_if`` expressions can also contain custom functions registered
+    with :ref:`expression providers <components-expression-language-provider>`.
+
+Restrict to a port
+------------------
+
+Add the ``port`` option to any ``access_control`` entries to require users to
+access those URLs via a specific port. This could be useful for example for
+``localhost:8080``.
+
+.. configuration-block::
+
+    .. code-block:: yaml
+
+        # config/packages/security.yaml
+        security:
+            # ...
+            access_control:
+                - { path: ^/cart/checkout, roles: PUBLIC_ACCESS, port: 8080 }
+
+    .. code-block:: php
+
+        // config/packages/security.php
+        namespace Symfony\Component\DependencyInjection\Loader\Configurator;
+
+        return App::config([
+            'security' => [
+                'access_control' => [
+                    ['path' => '^/cart/checkout', 'roles' => 'PUBLIC_ACCESS', 'port' => 8080],
+                ],
+            ],
+        ]);
+
+Forcing a Channel (http, https)
+-------------------------------
+
+You can also require a user to access a URL via SSL; use the
+``requires_channel`` argument in any ``access_control`` entries. If this
+``access_control`` is matched and the request is using the ``http`` channel,
+the user will be redirected to ``https``:
+
+.. configuration-block::
+
+    .. code-block:: yaml
+
+        # config/packages/security.yaml
+        security:
+            # ...
+            access_control:
+                - { path: ^/cart/checkout, roles: PUBLIC_ACCESS, requires_channel: https }
+
+    .. code-block:: php
+
+        // config/packages/security.php
+        namespace Symfony\Component\DependencyInjection\Loader\Configurator;
+
+        return App::config([
+            'security' => [
+                'access_control' => [
+                    ['path' => '^/cart/checkout', 'roles' => 'PUBLIC_ACCESS', 'requires_channel' => 'https'],
+                ],
+            ],
+        ]);

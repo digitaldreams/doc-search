@@ -1,0 +1,195 @@
+Symfony Attributes Overview
+===========================
+
+Attributes are the successor of annotations since PHP 8. Attributes are native
+to the language and Symfony takes full advantage of them across the framework
+and its different components.
+
+Doctrine Bridge
+~~~~~~~~~~~~~~~
+
+* :doc:`UniqueEntity </reference/constraints/UniqueEntity>`
+* :ref:`MapEntity <doctrine-entity-value-resolver>`
+
+Command
+~~~~~~~
+
+* :ref:`Argument <console-input-arguments>`
+* :ref:`AsCommand <console_creating-command>`
+* :ref:`Ask <console-interactive-input>`
+* :ref:`AskChoice <console-input-ask-choice>`
+* :ref:`AsTargetedValueResolver <console-value-resolver-targeted>`
+* :ref:`Interact <console-interact-attribute>`
+* :ref:`MapDateTime <console-value-resolver-datetime>`
+* :ref:`MapInput <console-input-map-input>`
+* :ref:`Option <console-input-options>`
+* :ref:`ValueResolver <console-managing-value-resolvers>`
+
+Contracts
+~~~~~~~~~
+
+* :ref:`Required <autowiring-calls>`
+* :ref:`SubscribedService <service-subscribers-service-subscriber-trait>`
+
+Dependency Injection
+~~~~~~~~~~~~~~~~~~~~
+
+* :ref:`AsAlias <services-alias>`
+* :doc:`AsDecorator </service_container/decoration>`
+* :ref:`AsTagDecorator <decoration-tagged-services>`
+* :ref:`AsTaggedItem <tags_as-tagged-item>`
+* :ref:`Autoconfigure <lazy-services_configuration>`
+* :ref:`AutoconfigureResourceTag <di-resource-tags>`
+* :ref:`AutoconfigureTag <di-instanceof>`
+* :ref:`Autowire <autowire-attribute>`
+* :ref:`AutowireCallable <autowiring_closures>`
+* :doc:`AutowireDecorated </service_container/decoration>`
+* :ref:`AutowireInline <autowiring-anonymous-services-inline>`
+* :ref:`AutowireIterator <service-locator_autowire-iterator>`
+* :ref:`AutowireLocator <service-locator_autowire-locator>`
+* :ref:`AutowireMethodOf <autowiring_closures>`
+* :ref:`AutowireServiceClosure <autowiring_closures>`
+* :ref:`Exclude <service-psr4-loader>`
+* :ref:`Lazy <lazy-services_configuration>`
+* :ref:`RequiredBundle <bundles-required-bundles>`
+* :ref:`Target <autowiring-multiple-implementations-same-type>`
+* :ref:`When <service-container_limiting-to-env>`
+* :ref:`WhenNot <service-container_limiting-to-env>`
+
+
+EventDispatcher
+~~~~~~~~~~~~~~~
+
+* :ref:`AsEventListener <event-dispatcher_event-listener-attributes>`
+
+FrameworkBundle
+~~~~~~~~~~~~~~~
+
+* :ref:`AsRoutingConditionService <routing-matching-expressions>`
+
+HttpKernel
+~~~~~~~~~~
+
+* :doc:`AsController </controller/service>`
+* :ref:`AsTargetedValueResolver <controller-targeted-value-resolver>`
+* :ref:`Cache <http-cache-expiration-intro>`
+* :ref:`IsSignatureValid <routing-signing-uris>`
+* :ref:`MapDateTime <functionality-shipped-with-the-httpkernel>`
+* :ref:`MapQueryParameter <controller_map-request>`
+* :ref:`MapQueryString <controller_map-request>`
+* :ref:`MapRequestHeader <controller_map-request-header>`
+* :ref:`MapRequestPayload <controller_map-request>`
+* :ref:`MapUploadedFile <controller_map-uploaded-file>`
+* :ref:`RateLimit <rate-limiter-controller>`
+* :ref:`Serialize <controller_serialize>`
+* :ref:`ValueResolver <managing-value-resolvers>`
+* :ref:`WithHttpStatus <framework_exceptions>`
+* :ref:`WithLogLevel <framework_exceptions>`
+
+JsonPath
+~~~~~~~~
+
+* :ref:`AsJsonPathFunction <json-path-custom-functions>`
+
+JsonStreamer
+~~~~~~~~~~~~
+
+* :ref:`JsonStreamable <json-streamer-streamable-attribute>`
+* :ref:`StreamedName <json-streamer-configure-encoded-name>`
+* :ref:`ValueTransformer <json-streamer-configure-encoded-value>`
+
+Messenger
+~~~~~~~~~
+
+* :ref:`AsMessage <messenger-message-attribute>`
+* :ref:`AsMessageHandler <messenger-handler>`
+
+ObjectMapper
+~~~~~~~~~~~~
+
+* :ref:`Map <object_mapper-with-attributes>`
+
+PHPUnit Bridge
+~~~~~~~~~~~~~~
+
+* :ref:`DnsSensitive <phpunit-bridge-dns-sensitive-tests>`
+* :ref:`TimeSensitive <phpunit-bridge-time-sensitive-tests>`
+
+RemoteEvent
+~~~~~~~~~~~
+
+* :ref:`AsRemoteEventConsumer <webhook>`
+
+Routing
+~~~~~~~
+
+* :doc:`Route </routing>`
+
+Scheduler
+~~~~~~~~~
+
+* :ref:`AsCronTask <scheduler-attributes-cron-task>`
+* :ref:`AsPeriodicTask <scheduler-attributes-periodic-task>`
+* :ref:`AsSchedule <scheduler_attaching-recurring-messages>`
+
+Security
+~~~~~~~~
+
+* :ref:`CurrentUser <security-json-login>`
+* :ref:`IsCsrfTokenValid <csrf-controller-attributes>`
+* :ref:`IsGranted <security-securing-controller-attributes>`
+
+.. _reference-attributes-serializer:
+
+Serializer
+~~~~~~~~~~
+
+* :ref:`Context <serializer-context>`
+* :ref:`DiscriminatorMap <serializer_interfaces-and-abstract-classes>`
+* :ref:`ExtendsSerializationFor <serializer-extends-serialization-for>`
+* :ref:`Groups <serializer-groups-attribute>`
+* :ref:`Ignore <serializer_ignoring-attributes>`
+* :ref:`MaxDepth <serializer_handling-serialization-depth>`
+* :ref:`SerializedName <serializer-name-conversion>`
+* :ref:`SerializedPath <serializer-nested-structures>`
+
+Twig
+~~~~
+
+* :ref:`Template <templates-template-attribute>`
+* :ref:`AsTwigFilter <templates-twig-filter-attribute>`
+* :ref:`AsTwigFunction <templates-twig-function-attribute>`
+* ``AsTwigTest``
+
+Symfony UX
+~~~~~~~~~~
+
+* `AsEntityAutocompleteField`_
+* `AsLiveComponent`_
+* `AsTwigComponent`_
+* `Broadcast`_
+
+Validator
+~~~~~~~~~
+
+Each validation constraint comes with a PHP attribute. See
+:doc:`/reference/constraints` for a full list of validation constraints.
+
+* :doc:`HasNamedArguments </validation/custom_constraint>`
+* :ref:`ExtendsValidationFor <validation-extends-validation>`
+
+Workflow
+~~~~~~~~
+
+* :ref:`AsAnnounceListener <workflow_using-events>`
+* :ref:`AsCompletedListener <workflow_using-events>`
+* :ref:`AsEnterListener <workflow_using-events>`
+* :ref:`AsEnteredListener <workflow_using-events>`
+* :ref:`AsGuardListener <workflow_using-events>`
+* :ref:`AsLeaveListener <workflow_using-events>`
+* :ref:`AsTransitionListener <workflow_using-events>`
+
+.. _`AsEntityAutocompleteField`: https://symfony.com/bundles/ux-autocomplete/current/index.html#usage-in-a-form-with-ajax
+.. _`AsLiveComponent`: https://symfony.com/bundles/ux-live-component/current/index.html
+.. _`AsTwigComponent`: https://symfony.com/bundles/ux-twig-component/current/index.html
+.. _`Broadcast`: https://symfony.com/bundles/ux-turbo/current/index.html#broadcast-conventions-and-configuration

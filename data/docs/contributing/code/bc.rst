@@ -1,0 +1,679 @@
+Our Backward Compatibility Promise
+==================================
+
+Ensuring smooth upgrades of your projects is our first priority. That's why
+we promise you backward compatibility (BC) for all minor Symfony releases.
+You probably recognize this strategy as `Semantic Versioning`_. In short,
+Semantic Versioning means that only major releases (such as 5.0, 6.0 etc.) are
+allowed to break backward compatibility. Minor releases (such as 5.1, 5.2 etc.)
+may introduce new features, but must do so without breaking the existing API of
+that release branch (5.x in the previous example).
+
+We also provide deprecation messages triggered in the code base to help you with
+the migration process across major releases.
+
+.. tip::
+
+    **Quick reference**
+
+    When working on a bug fix or feature, don't break existing code. In practice:
+
+    * Don't remove or rename public/protected methods, properties or constants;
+    * Don't add arguments to existing methods (make them optional if you must);
+    * Don't change the signature of public/protected methods;
+    * To replace something, keep the old API working and :ref:`deprecate it
+      <contributing-code-conventions-deprecations>` instead of removing it.
+
+    The tables below list every allowed and disallowed change in detail.
+
+However, backward compatibility comes in many different flavors. In fact, almost
+every change that we make to the framework can potentially break an application.
+For example, if we add a new method to a class, this will break an application
+which extended this class and added the same method, but with a different
+method signature.
+
+Also, not every BC break has the same impact on application code. While some BC
+breaks require you to make significant changes to your classes or your
+architecture, others are fixed by changing the name of a method.
+
+That's why we created this page for you. The section "Using Symfony Code" will
+tell you how you can ensure that your application won't break completely when
+upgrading to a newer version of the same major release branch.
+
+The second section, "Working on Symfony Code", is targeted at Symfony
+contributors. This section lists detailed rules that every contributor needs to
+follow to ensure smooth upgrades for our users.
+
+.. warning::
+
+    :ref:`Experimental Features <experimental-features>` and code marked with
+    the ``@internal`` tags are excluded from our Backward Compatibility promise.
+
+    Also note that backward compatibility breaks are tolerated if they are
+    required to fix a security issue.
+
+Using Symfony Code
+------------------
+
+If you are using Symfony in your projects, the following guidelines will help
+you to ensure smooth upgrades to all future minor releases of your Symfony
+version.
+
+Using our Interfaces
+~~~~~~~~~~~~~~~~~~~~
+
+All interfaces shipped with Symfony can be used in type hints. You can also call
+any of the methods that they declare. We guarantee that we won't break code that
+sticks to these rules.
+
+.. warning::
+
+    The exception to this rule are interfaces tagged with ``@internal``. Such
+    interfaces should not be used or implemented.
+
+If you implement an interface, we promise that we won't ever break your code.
+
+The following table explains in detail which use cases are covered by our
+backward compatibility promise:
+
++-----------------------------------------------+-----------------------------+
+| Use Case                                      | Backward Compatibility      |
++===============================================+=============================+
+| **If you...**                                 | **Then we guarantee BC...** |
++-----------------------------------------------+-----------------------------+
+| Type hint against the interface               | Yes                         |
++-----------------------------------------------+-----------------------------+
+| Call a method                                 | Yes :ref:`[10] <note-10>`   |
++-----------------------------------------------+-----------------------------+
+| **If you implement the interface and...**     | **Then we guarantee BC...** |
++-----------------------------------------------+-----------------------------+
+| Implement a method                            | Yes :ref:`[10] <note-10>`   |
++-----------------------------------------------+-----------------------------+
+| Add an argument to an implemented method      | Yes                         |
++-----------------------------------------------+-----------------------------+
+| Add a default value to an argument            | Yes                         |
++-----------------------------------------------+-----------------------------+
+| Add a return type to an implemented method    | Yes                         |
++-----------------------------------------------+-----------------------------+
+
+Using our Classes
+~~~~~~~~~~~~~~~~~
+
+All classes provided by Symfony may be instantiated and accessed through their
+public methods and properties.
+
+.. warning::
+
+    Classes, properties and methods that bear the tag ``@internal`` as well as
+    the classes located in the various ``*\Tests\`` namespaces are an
+    exception to this rule. They are meant for internal use only and should
+    not be accessed by your own code.
+
+To be on the safe side, check the following table to know which use cases are
+covered by our backward compatibility promise:
+
++-----------------------------------------------+-----------------------------+
+| Use Case                                      | Backward Compatibility      |
++===============================================+=============================+
+| **If you...**                                 | **Then we guarantee BC...** |
++-----------------------------------------------+-----------------------------+
+| Type hint against the class                   | Yes                         |
++-----------------------------------------------+-----------------------------+
+| Create a new instance                         | Yes :ref:`[10] <note-10>`   |
++-----------------------------------------------+-----------------------------+
+| Extend the class                              | Yes                         |
++-----------------------------------------------+-----------------------------+
+| Access a public property                      | Yes                         |
++-----------------------------------------------+-----------------------------+
+| Call a public method                          | Yes :ref:`[10] <note-10>`   |
++-----------------------------------------------+-----------------------------+
+| **If you extend the class and...**            | **Then we guarantee BC...** |
++-----------------------------------------------+-----------------------------+
+| Access a protected property                   | Yes                         |
++-----------------------------------------------+-----------------------------+
+| Call a protected method                       | Yes :ref:`[10] <note-10>`   |
++-----------------------------------------------+-----------------------------+
+| Override a public property                    | Yes                         |
++-----------------------------------------------+-----------------------------+
+| Override a protected property                 | Yes                         |
++-----------------------------------------------+-----------------------------+
+| Override a public method                      | Yes :ref:`[10] <note-10>`   |
++-----------------------------------------------+-----------------------------+
+| Override a protected method                   | Yes :ref:`[10] <note-10>`   |
++-----------------------------------------------+-----------------------------+
+| Add a new property                            | No                          |
++-----------------------------------------------+-----------------------------+
+| Add a new method                              | No                          |
++-----------------------------------------------+-----------------------------+
+| Add an argument to an overridden method       | Yes                         |
++-----------------------------------------------+-----------------------------+
+| Add a default value to an argument            | Yes                         |
++-----------------------------------------------+-----------------------------+
+| Call a private method (via Reflection)        | No                          |
++-----------------------------------------------+-----------------------------+
+| Access a private property (via Reflection)    | No                          |
++-----------------------------------------------+-----------------------------+
+
+Using our Traits
+~~~~~~~~~~~~~~~~
+
+All traits provided by Symfony may be used in your classes.
+
+.. warning::
+
+    The exception to this rule are traits tagged with ``@internal``. Such
+    traits should not be used.
+
+To be on the safe side, check the following table to know which use cases are
+covered by our backward compatibility promise:
+
++-----------------------------------------------+-----------------------------+
+| Use Case                                      | Backward Compatibility      |
++===============================================+=============================+
+| **If you...**                                 | **Then we guarantee BC...** |
++-----------------------------------------------+-----------------------------+
+| Use a trait                                   | Yes                         |
++-----------------------------------------------+-----------------------------+
+| **If you use the trait and...**               | **Then we guarantee BC...** |
++-----------------------------------------------+-----------------------------+
+| Use it to implement an interface              | Yes                         |
++-----------------------------------------------+-----------------------------+
+| Use it to implement an abstract method        | Yes                         |
++-----------------------------------------------+-----------------------------+
+| Use it to extend a parent class               | Yes                         |
++-----------------------------------------------+-----------------------------+
+| Use it to define an abstract class            | Yes                         |
++-----------------------------------------------+-----------------------------+
+| Use a public, protected or private property   | Yes                         |
++-----------------------------------------------+-----------------------------+
+| Use a public, protected or private method     | Yes                         |
++-----------------------------------------------+-----------------------------+
+
+Using our Translations
+~~~~~~~~~~~~~~~~~~~~~~
+
+All translations provided by Symfony for security and validation errors are
+intended for internal use only. They may be changed or removed at any time.
+Symfony's Backward Compatibility Promise does not apply to internal translations.
+
+Working on Symfony Code
+-----------------------
+
+Do you want to help us improve Symfony? That's great! However, please stick
+to the rules listed below in order to ensure smooth upgrades for our users.
+
+Changing Interfaces
+~~~~~~~~~~~~~~~~~~~
+
+This table tells you which changes you are allowed to do when working on
+Symfony's interfaces:
+
+==============================================  ==============  ===============
+Type of Change                                  Change Allowed  Notes
+==============================================  ==============  ===============
+Remove entirely                                 No
+Change name or namespace                        No
+Add parent interface                            Yes             :ref:`[2] <note-2>`
+Remove parent interface                         No
+**Methods**
+Add method                                      No
+Remove method                                   No
+Change name                                     No
+Move to parent interface                        Yes
+Add argument without a default value            No
+Add argument with a default value               No
+Remove argument                                 No              :ref:`[3] <note-3>`
+Add default value to an argument                No
+Change default value of an argument             No              :ref:`[12] <note-12>`
+Remove default value of an argument             No              :ref:`[13] <note-13>`
+Add type hint to an argument                    No
+Remove type hint of an argument                 No
+Change argument type                            No
+Add return type                                 No
+Remove return type                              No              :ref:`[9] <note-9>`
+Change return type                              No
+**Static Methods**
+Turn non static into static                     No
+Turn static into non static                     No
+**Constants**
+Add constant                                    Yes
+Remove constant                                 No
+Change value of a constant                      Yes             :ref:`[1] <note-1>` :ref:`[5] <note-5>`
+==============================================  ==============  ===============
+
+Changing Classes
+~~~~~~~~~~~~~~~~
+
+This table tells you which changes you are allowed to do when working on
+Symfony's classes:
+
+========================================================================  ==============  ===============
+Type of Change                                                            Change Allowed  Notes
+========================================================================  ==============  ===============
+Remove entirely                                                           No
+Make final                                                                No              :ref:`[6] <note-6>`
+Make abstract                                                             No
+Change name or namespace                                                  No
+Change parent class                                                       Yes             :ref:`[4] <note-4>`
+Add interface                                                             Yes
+Remove interface                                                          No
+**Public Properties**
+Add public property                                                       Yes
+Remove public property                                                    No
+Reduce visibility                                                         No
+Move to parent class                                                      Yes
+**Protected Properties**
+Add protected property                                                    Yes
+Remove protected property                                                 No              :ref:`[7] <note-7>`
+Reduce visibility                                                         No              :ref:`[7] <note-7>`
+Make public                                                               No              :ref:`[7] <note-7>`
+Move to parent class                                                      Yes
+**Private Properties**
+Add private property                                                      Yes
+Make public or protected                                                  Yes
+Remove private property                                                   Yes
+**Constructors**
+Add constructor without mandatory arguments                               Yes             :ref:`[1] <note-1>`
+:ref:`Add argument without a default value <add-argument-public-method>`  No
+Add argument with a default value                                         Yes             :ref:`[11] <note-11>`
+Rename argument                                                           Yes             :ref:`[10] <note-10>`
+Remove argument                                                           No              :ref:`[3] <note-3>`
+Add default value to an argument                                          Yes             :ref:`[14] <note-14>`
+Change default value of an argument                                       No              :ref:`[12] <note-12>`
+Remove default value of an argument                                       No              :ref:`[13] <note-13>`
+Add type hint to an argument                                              No
+Remove type hint of an argument                                           Yes
+Change argument type                                                      No
+Remove constructor                                                        No
+Reduce visibility of a public constructor                                 No
+Reduce visibility of a protected constructor                              No              :ref:`[7] <note-7>`
+Move to parent class                                                      Yes
+**Destructors**
+Add destructor                                                            Yes
+Remove destructor                                                         No
+Move to parent class                                                      Yes
+**Public Methods**
+Add public method                                                         Yes
+Remove public method                                                      No
+Change name                                                               No
+Reduce visibility                                                         No
+Make final                                                                No              :ref:`[6] <note-6>`
+Move to parent class                                                      Yes
+:ref:`Add argument without a default value <add-argument-public-method>`  No
+:ref:`Add argument with a default value <add-argument-public-method>`     No              :ref:`[7] <note-7>` :ref:`[8] <note-8>`
+Rename argument                                                           Yes             :ref:`[10] <note-10>`
+Remove argument                                                           No              :ref:`[3] <note-3>`
+Add default value to an argument                                          No              :ref:`[7] <note-7>` :ref:`[8] <note-8>` :ref:`[14] <note-14>`
+Remove default value of an argument                                       No              :ref:`[13] <note-13>`
+Add type hint to an argument                                              No              :ref:`[7] <note-7>` :ref:`[8] <note-8>`
+Remove type hint of an argument                                           No              :ref:`[7] <note-7>` :ref:`[8] <note-8>`
+Change argument type                                                      No              :ref:`[7] <note-7>` :ref:`[8] <note-8>`
+Add return type                                                           No              :ref:`[7] <note-7>` :ref:`[8] <note-8>`
+Remove return type                                                        No              :ref:`[7] <note-7>` :ref:`[8] <note-8>` :ref:`[9] <note-9>`
+Change return type                                                        No              :ref:`[7] <note-7>` :ref:`[8] <note-8>`
+**Protected Methods**
+Add protected method                                                      Yes
+Remove protected method                                                   No              :ref:`[7] <note-7>`
+Change name                                                               No              :ref:`[7] <note-7>`
+Reduce visibility                                                         No              :ref:`[7] <note-7>`
+Make final                                                                No              :ref:`[6] <note-6>`
+Make public                                                               No              :ref:`[7] <note-7>` :ref:`[8] <note-8>`
+Move to parent class                                                      Yes
+:ref:`Add argument without a default value <add-argument-public-method>`  No
+:ref:`Add argument with a default value <add-argument-public-method>`     No              :ref:`[7] <note-7>` :ref:`[8] <note-8>`
+Rename argument                                                           Yes             :ref:`[10] <note-10>`
+Remove argument                                                           No              :ref:`[3] <note-3>`
+Add default value to an argument                                          No              :ref:`[7] <note-7>` :ref:`[8] <note-8>` :ref:`[14] <note-14>`
+Change default value of an argument                                       No              :ref:`[12] <note-12>`
+Remove default value of an argument                                       No              :ref:`[13] <note-13>` :ref:`[7] <note-7>`
+Add type hint to an argument                                              No              :ref:`[7] <note-7>` :ref:`[8] <note-8>`
+Remove type hint of an argument                                           No              :ref:`[7] <note-7>` :ref:`[8] <note-8>`
+Change argument type                                                      No              :ref:`[7] <note-7>` :ref:`[8] <note-8>`
+Add return type                                                           No              :ref:`[7] <note-7>` :ref:`[8] <note-8>`
+Remove return type                                                        No              :ref:`[7] <note-7>` :ref:`[8] <note-8>` :ref:`[9] <note-9>`
+Change return type                                                        No              :ref:`[7] <note-7>` :ref:`[8] <note-8>`
+**Private Methods**
+Add private method                                                        Yes
+Remove private method                                                     Yes
+Change name                                                               Yes
+Make public or protected                                                  Yes
+Add argument without a default value                                      Yes
+Add argument with a default value                                         Yes
+Rename argument                                                           Yes
+Remove argument                                                           Yes
+Add default value to an argument                                          Yes
+Remove default value of an argument                                       Yes
+Add type hint to an argument                                              Yes
+Remove type hint of an argument                                           Yes
+Change argument type                                                      Yes
+Add return type                                                           Yes
+Remove return type                                                        Yes
+Change return type                                                        Yes
+**Static Methods and Properties**
+Turn non static into static                                               No              :ref:`[7] <note-7>` :ref:`[8] <note-8>`
+Turn static into non static                                               No
+**Constants**
+Add constant                                                              Yes
+Remove constant                                                           No
+Change value of a constant                                                Yes             :ref:`[1] <note-1>` :ref:`[5] <note-5>`
+========================================================================  ==============  ===============
+
+Changing Traits
+~~~~~~~~~~~~~~~
+
+This table tells you which changes you are allowed to do when working on
+Symfony's traits:
+
+===============================================================================  ==============  ===============
+Type of Change                                                                   Change Allowed  Notes
+===============================================================================  ==============  ===============
+Remove entirely                                                                  No
+Change name or namespace                                                         No
+Use another trait                                                                Yes
+**Public Properties**
+Add public property                                                              Yes
+Remove public property                                                           No
+Reduce visibility                                                                No
+Move to a used trait                                                             Yes
+**Protected Properties**
+Add protected property                                                           Yes
+Remove protected property                                                        No
+Reduce visibility                                                                No
+Make public                                                                      No
+Move to a used trait                                                             Yes
+**Private Properties**
+Add private property                                                             Yes
+Remove private property                                                          No
+Make public or protected                                                         Yes
+Move to a used trait                                                             Yes
+**Constructors and destructors**
+Have constructor or destructor                                                   No
+**Public Methods**
+Add public method                                                                Yes
+Remove public method                                                             No
+Change name                                                                      No
+Reduce visibility                                                                No
+Make final                                                                       No              :ref:`[6] <note-6>`
+Move to used trait                                                               Yes
+:ref:`Add argument without a default value <add-argument-public-method>`         No
+:ref:`Add argument with a default value <add-argument-public-method>`            No
+Remove argument                                                                  No
+Add default value to an argument                                                 No
+Remove default value of an argument                                              No              :ref:`[13] <note-13>`
+Add type hint to an argument                                                     No
+Remove type hint of an argument                                                  No
+Change argument type                                                             No
+Change return type                                                               No
+**Protected Methods**
+Add protected method                                                             Yes
+Remove protected method                                                          No
+Change name                                                                      No
+Reduce visibility                                                                No
+Make final                                                                       No              :ref:`[6] <note-6>`
+Make public                                                                      No              :ref:`[8] <note-8>`
+Move to used trait                                                               Yes
+:ref:`Add argument without a default value <add-argument-public-method>`         No
+:ref:`Add argument with a default value <add-argument-public-method>`            No
+Remove argument                                                                  No
+Add default value to an argument                                                 No
+Remove default value of an argument                                              No              :ref:`[13] <note-13>`
+Add type hint to an argument                                                     No
+Remove type hint of an argument                                                  No
+Change argument type                                                             No
+Change return type                                                               No
+**Private Methods**
+Add private method                                                               Yes
+Remove private method                                                            No
+Change name                                                                      No
+Make public or protected                                                         Yes
+Move to used trait                                                               Yes
+Add argument without a default value                                             No
+Add argument with a default value                                                No
+Remove argument                                                                  No
+Add default value to an argument                                                 No
+Remove default value of an argument                                              No              :ref:`[13] <note-13>`
+Add type hint to an argument                                                     No
+Remove type hint of an argument                                                  No
+Change argument type                                                             No
+Add return type                                                                  No
+Remove return type                                                               No
+Change return type                                                               No
+**Static Methods and Properties**
+Turn non static into static                                                      No
+Turn static into non static                                                      No
+===============================================================================  ==============  ===============
+
+Notes
+~~~~~
+
+.. _note-1:
+
+**[1]** Should be avoided. When done, this change must be documented in the
+UPGRADE file.
+
+.. _note-2:
+
+**[2]** The added parent interface must not introduce any new methods that don't
+exist in the interface already.
+
+.. _note-3:
+
+**[3]** Only the last optional argument(s) of a method may be removed, as PHP
+does not care about additional arguments that you pass to a method.
+
+.. _note-4:
+
+**[4]** When changing the parent class, the original parent class must remain an
+ancestor of the class.
+
+.. _note-5:
+
+**[5]** The value of a constant may only be changed when the constants aren't
+used in configuration (e.g. Yaml and XML files), as these do not support
+constants and have to hardcode the value. For instance, event name constants
+can't change the value without introducing a BC break. Additionally, if a
+constant will likely be used in objects that are serialized, the value of a
+constant should not be changed.
+
+.. _note-6:
+
+**[6]** Allowed using the ``@final since Symfony x.y`` annotation. Remove the
+``since Symfony x.y`` part in the next major version, when switching to the
+plain ``@final`` annotation or to the native ``final`` keyword.
+
+.. _note-7:
+
+**[7]** Allowed if the class is final. A class annotated with ``@final`` is
+considered final unless the annotation is followed by ``since Symfony x.y``.
+Changing an argument type is only possible with a parent type. Changing a
+return type is only possible with a child type.
+
+.. _note-8:
+
+**[8]** Allowed if the method is final. A method annotated with ``@final`` is
+considered final unless the annotation is followed by ``since Symfony x.y``.
+Changing an argument type is only possible with a parent type. Changing a
+return type is only possible with a child type.
+
+.. _note-9:
+
+**[9]** Allowed for the ``void`` return type.
+
+.. _note-10:
+
+**[10]** Parameter names are only covered by the compatibility promise for
+constructors of Attribute classes and for methods tagged with one of the
+following PHPDoc tags. Covered parameter names never change. Other parameters
+can be renamed, so using PHP named arguments for them might break your code
+when upgrading to newer Symfony versions.
+
+* ``@optional-arguments-by-name``: the names of optional parameters are covered
+  but not their order, so pass optional arguments by name. The order of required
+  parameters is covered but not their names, so pass required arguments by
+  position;
+* ``@arguments-by-name``: the names of all parameters are covered but not their
+  order, so pass all arguments by name;
+* ``@stable-parameter-names``: both the names and the order of all parameters
+  are covered, so you can pass arguments by name or by position.
+
+For example::
+
+    class Pagination
+    {
+        /**
+         * @optional-arguments-by-name
+         */
+        public function __construct(int $page, int $itemsPerPage = 20)
+        {
+            // ...
+        }
+    }
+
+    // OK: required argument by position, optional argument by name
+    new Pagination(3, itemsPerPage: 50);
+    // might break on upgrade because the position of optional arguments can change
+    new Pagination(3, 50);
+
+When one of these tags is added to the PHPDoc of a class, interface, trait or
+enum, it applies to all its public and protected methods. In traits, it also
+applies to private methods, because the classes that use the trait can call
+them.
+
+When you implement or override a method tagged with one of these tags (except
+constructors), keep the same parameter names, because the code that calls your
+method through the interface or the parent class can pass arguments by name.
+
+.. _note-11:
+
+**[11]** Only optional argument(s) of a constructor at last position may be added.
+When the constructor uses the ``@optional-arguments-by-name`` or
+``@arguments-by-name`` tag, a new optional argument may be added at any position
+after the required arguments.
+
+.. _note-12:
+
+**[12]** Changing a default value is a BC break because it changes the behavior
+of existing code that relies on the current default value.
+
+.. _note-13:
+
+**[13]** Removing a default value is a BC break because it makes previously
+optional arguments required, breaking existing code that doesn't pass all arguments.
+
+.. _note-14:
+
+**[14]** Not allowed when the method uses the ``@optional-arguments-by-name``
+tag. Callers pass required arguments by position, but the position of optional
+arguments isn't covered, so those existing calls would no longer be covered by
+the promise.
+
+Making Code Changes in a Backward Compatible Way
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+As you read above, many changes are not allowed because they would represent a
+backward compatibility break. However, we want to be able to improve the code and
+its features over time and that can be done thanks to some strategies that
+allow you to still do some unallowed changes in several steps that ensure backward
+compatibility and a smooth upgrade path. Some of them are described in the next
+sections.
+
+.. _add-argument-public-method:
+
+Adding an Argument to a Public Method
+.....................................
+
+Adding a new argument to a public method is possible only if this is the last
+argument of the method.
+
+If that's the case, here is how to do it properly in a minor version:
+
+#. Add the argument as a comment in the signature::
+
+    // the new argument can be optional
+    public function say(string $text, /* bool $stripWhitespace = true */): void
+    {
+    }
+
+    // or required
+    public function say(string $text, /* bool $stripWhitespace */): void
+    {
+    }
+
+#. Document the new argument in a PHPDoc::
+
+    /**
+     * @param bool $stripWhitespace
+     */
+
+#. Use ``func_num_args`` and ``func_get_arg`` to retrieve the argument in the
+   method::
+
+        $stripWhitespace = 2 <= \func_num_args() ? func_get_arg(1) : false;
+
+   Note that the default value is ``false`` to keep the current behavior.
+
+#. If the argument has a default value that will change the current behavior,
+   warn the user::
+
+    trigger_deprecation('symfony/COMPONENT', 'X.Y', 'Not passing the "bool $stripWhitespace" argument explicitly is deprecated, its default value will change to X in Z.0.');
+
+#. If the argument has no default value, warn the user that is going to be
+   required in the next major version::
+
+    if (\func_num_args() < 2) {
+        trigger_deprecation('symfony/COMPONENT', 'X.Y', 'The "%s()" method will have a new "bool $stripWhitespace" argument in version Z.0, not defining it is deprecated.', __METHOD__);
+
+        $stripWhitespace = false;
+    } else {
+        $stripWhitespace = func_get_arg(1);
+    }
+
+#. In the next major version (``X.0``), uncomment the argument, remove the
+   PHPDoc if there is no need for a description, and remove the
+   ``func_get_arg`` code and the warning if any.
+
+The ``final`` Keyword
+.....................
+
+Making a class, method, property or constant ``final`` prevents it from being
+extended or overridden. Doing that is a backward compatibility break.
+
+The ``@final`` PHPDoc annotation marks code as final without actually enforcing
+it. Adding it doesn't break any code by itself, but it reduces the list of
+changes that are considered backward compatibility breaks. For instance, turning
+a protected property into a public one is allowed in final classes, because
+there's no risk of colliding with a property of the same name defined in a child
+class. That's why ``@final`` must never be added in a minor release, unless it's
+qualified with ``since Symfony x.y`` as explained below.
+
+Use the ``@final since Symfony x.y`` annotation to announce that a class,
+method, property or constant will be made final in the next major version. It
+tells users to stop extending or overriding it, and tells contributors that it
+isn't considered final yet. In the next major version, either replace the
+annotation with the native ``final`` keyword, or remove the
+``since Symfony x.y`` part and leave only ``@final``.
+
+.. note::
+
+    Symfony's ``DebugClassLoader`` copies the text that follows ``@final``
+    verbatim into the deprecation message. For example, ``@final since Symfony 8.1``
+    results in ``The "..." class is considered final since Symfony 8.1``,
+    so keep that text short and accurate.
+
+.. _experimental-features:
+
+Experimental Features
+---------------------
+
+Sometimes a new feature is controversial or its API isn't settled yet. In those
+cases we prefer to gather feedback from real-world usage before committing to the
+backward compatibility promise. Such features can be marked as **experimental**
+by tagging their classes and methods with ``@experimental``.
+
+A feature can stay experimental for only one minor version and can never be
+introduced in an :ref:`LTS version <releases-lts>` (the core team may extend the
+experimental period by one more minor version on a case-by-case basis). While a
+feature is experimental, the ``CHANGELOG`` must explain any backward incompatible
+change and how to upgrade.
+
+.. _`Semantic Versioning`: https://semver.org/

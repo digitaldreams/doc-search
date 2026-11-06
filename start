@@ -1,0 +1,15 @@
+#!/bin/sh
+# One command from a fresh checkout to a running demo. Safe to re-run: every step skips work already done.
+set -e
+cd "$(dirname "$0")"
+[ -d vendor ] || composer install --no-interaction --quiet
+export APP_ENV=prod APP_DEBUG=0
+php bin/console cache:clear --quiet
+php bin/console doctrine:migrations:migrate --no-interaction --quiet --allow-no-migration
+php bin/console app:docs:ingest --no-ansi | tail -2
+PORT="${PORT:-8150}"
+echo "Open http://127.0.0.1:$PORT"
+# Workers: a reorder takes about a minute, and one worker would make every other visitor wait for it
+export PHP_CLI_SERVER_WORKERS="${PHP_CLI_SERVER_WORKERS:-4}"
+# variables_order: without E, php -S hides the exported APP_ENV and the app silently runs in dev mode
+exec php -d variables_order=EGPCS -S "127.0.0.1:$PORT" -t public

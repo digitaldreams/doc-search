@@ -1,0 +1,11 @@
+ai:
+    platform:
+        ollama:
+            endpoint: '%env(OLLAMA_HOST_URL)%'
+
+    store:
+        postgres:
+            docs:
+                dbal_connection: 'doctrine.dbal.default_connection'
+                table_name: chunks
+                distance: cosine

@@ -1,0 +1,495 @@
+Building your own Framework with the MicroKernelTrait
+=====================================================
+
+The default ``Kernel`` class included in Symfony applications uses a
+:class:`Symfony\\Bundle\\FrameworkBundle\\Kernel\\MicroKernelTrait` to configure
+the bundles, the routes and the service container in the same class.
+
+This micro-kernel approach is flexible, allowing you to control your application
+structure and features.
+
+A Single-File Symfony Application
+---------------------------------
+
+Start with a completely empty directory and install these Symfony components
+via Composer:
+
+.. code-block:: terminal
+
+    $ composer require symfony/framework-bundle symfony/runtime
+
+Next, create an ``index.php`` file that defines the kernel class and runs it:
+
+.. configuration-block::
+
+    .. code-block:: php-attributes
+
+        // index.php
+        use Symfony\Bundle\FrameworkBundle\Kernel\MicroKernelTrait;
+        use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
+        use Symfony\Component\HttpFoundation\JsonResponse;
+        use Symfony\Component\HttpFoundation\Request;
+        use Symfony\Component\HttpKernel\Kernel as BaseKernel;
+        use Symfony\Component\Routing\Attribute\Route;
+
+        require_once dirname(__DIR__).'/vendor/autoload_runtime.php';
+
+        class Kernel extends BaseKernel
+        {
+            use MicroKernelTrait;
+
+            protected function configureContainer(ContainerConfigurator $container): void
+            {
+                // PHP equivalent of config/packages/framework.yaml
+                $container->extension('framework', [
+                    'secret' => 'SOME_SECRET'
+                ]);
+            }
+
+            #[Route('/random/{limit}', name: 'random_number')]
+            public function randomNumber(int $limit): JsonResponse
+            {
+                return new JsonResponse([
+                    'number' => random_int(0, $limit),
+                ]);
+            }
+        }
+
+        return static function (array $context) {
+            return new Kernel($context['APP_ENV'], (bool) $context['APP_DEBUG']);
+        };
+
+    .. code-block:: php
+
+        // index.php
+        use Symfony\Bundle\FrameworkBundle\Kernel\MicroKernelTrait;
+        use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
+        use Symfony\Component\HttpFoundation\JsonResponse;
+        use Symfony\Component\HttpFoundation\Request;
+        use Symfony\Component\HttpKernel\Kernel as BaseKernel;
+        use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;
+
+        require_once dirname(__DIR__).'/vendor/autoload_runtime.php';
+
+        class Kernel extends BaseKernel
+        {
+            use MicroKernelTrait;
+
+            protected function configureContainer(ContainerConfigurator $container): void
+            {
+                // PHP equivalent of config/packages/framework.yaml
+                $container->extension('framework', [
+                    'secret' => 'SOME_SECRET'
+                ]);
+            }
+
+            protected function configureRoutes(RoutingConfigurator $routes): void
+            {
+                $routes->add('random_number', '/random/{limit}')->controller([$this, 'randomNumber']);
+            }
+
+            public function randomNumber(int $limit): JsonResponse
+            {
+                return new JsonResponse([
+                    'number' => random_int(0, $limit),
+                ]);
+            }
+        }
+
+        return static function (array $context) {
+            return new Kernel($context['APP_ENV'], (bool) $context['APP_DEBUG']);
+        };
+
+That's it! To test it, start the :ref:`Symfony local web server <symfony-cli-server>`:
+
+.. code-block:: terminal
+
+    $ symfony server:start
+
+Then see the JSON response in your browser: http://localhost:8000/random/10
+
+.. tip::
+
+    If your kernel only defines a single controller, you can use an invokable method::
+
+        class Kernel extends BaseKernel
+        {
+            use MicroKernelTrait;
+
+            // ...
+
+            #[Route('/random/{limit}', name: 'random_number')]
+            public function __invoke(int $limit): JsonResponse
+            {
+                // ...
+            }
+        }
+
+The Methods of a "Micro" Kernel
+-------------------------------
+
+When you use the ``MicroKernelTrait``, your kernel needs to have exactly three methods
+that define your bundles, your services and your routes:
+
+**registerBundles()**
+    This is the same ``registerBundles()`` that you see in a normal kernel. By
+    default, the micro kernel only registers the ``FrameworkBundle``. If you need
+    to register more bundles, override this method::
+
+        use Symfony\Bundle\FrameworkBundle\FrameworkBundle;
+        use Symfony\Bundle\TwigBundle\TwigBundle;
+        // ...
+
+        class Kernel extends BaseKernel
+        {
+            use MicroKernelTrait;
+
+            // ...
+
+            public function registerBundles(): array
+            {
+                yield new FrameworkBundle();
+                yield new TwigBundle();
+            }
+        }
+
+**configureContainer(ContainerConfigurator $container)**
+    This method builds and configures the container. In practice, you will use
+    ``extension()`` to configure different bundles (this is the equivalent
+    of what you see in a normal ``config/packages/*`` file). You can also register
+    services directly in PHP or load external configuration files (shown below).
+
+**configureRoutes(RoutingConfigurator $routes)**
+    In this method, you can use the ``RoutingConfigurator`` object to define routes
+    in your application and associate them to the controllers defined in this very
+    same file.
+
+    However, it's more convenient to define the controller routes using PHP attributes,
+    as shown above. That's why this method is commonly used only to load external
+    routing files (e.g. from bundles) as shown below.
+
+Restricting Allowed Environments
+--------------------------------
+
+The ``MicroKernelTrait`` provides a ``getAllowedEnvs()`` method to restrict
+which :ref:`configuration environment <configuration-environments>` names are
+valid for your application. By default, it returns an empty array, meaning any
+environment name is allowed.
+
+Override ``getAllowedEnvs()`` to return a non-empty array and the kernel will
+throw an ``InvalidArgumentException`` at boot time if the current environment
+(typically set via the ``APP_ENV`` environment variable) is not in the list::
+
+    // src/Kernel.php
+    namespace App;
+
+    use Symfony\Bundle\FrameworkBundle\Kernel\MicroKernelTrait;
+    use Symfony\Component\HttpKernel\Kernel as BaseKernel;
+
+    class Kernel extends BaseKernel
+    {
+        use MicroKernelTrait;
+
+        private function getAllowedEnvs(): array
+        {
+            return ['dev', 'prod', 'test'];
+        }
+    }
+
+With this configuration, booting the kernel with ``APP_ENV=staging`` throws
+an exception. This helps catch typos or misconfiguration early, especially in
+deployment pipelines.
+
+.. versionadded:: 8.1
+
+    The ``getAllowedEnvs()`` method was introduced in Symfony 8.1.
+
+Adding Interfaces to "Micro" Kernel
+-----------------------------------
+
+When using the ``MicroKernelTrait``, you can also implement the
+``CompilerPassInterface`` to automatically register the kernel itself as a
+compiler pass as explained in the dedicated
+:ref:`compiler pass section <kernel-as-compiler-pass>`. If the
+:class:`Symfony\\Component\\DependencyInjection\\Extension\\ExtensionInterface`
+is implemented when using the ``MicroKernelTrait``, then the kernel will
+be automatically registered as an extension. You can learn more about it in
+the dedicated section about
+:doc:`managing configuration with extensions </service_container/extensions>`.
+
+It is also possible to implement the ``EventSubscriberInterface`` to handle
+events directly from the kernel, again it will be registered automatically::
+
+    // ...
+    use App\Exception\Danger;
+    use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+    use Symfony\Component\HttpKernel\Event\ExceptionEvent;
+    use Symfony\Component\HttpKernel\KernelEvents;
+
+    class Kernel extends BaseKernel implements EventSubscriberInterface
+    {
+        use MicroKernelTrait;
+
+        // ...
+
+        public function onKernelException(ExceptionEvent $event): void
+        {
+            if ($event->getThrowable() instanceof Danger) {
+                $event->setResponse(new Response('It\'s dangerous to go alone. Take this ⚔'));
+            }
+        }
+
+        public static function getSubscribedEvents(): array
+        {
+            return [
+                KernelEvents::EXCEPTION => 'onKernelException',
+            ];
+        }
+    }
+
+.. _advanced-example-twig-annotations-and-the-web-debug-toolbar:
+
+Advanced Example: Twig, Attributes and the Web Debug Toolbar
+------------------------------------------------------------
+
+The purpose of the ``MicroKernelTrait`` is *not* to have a single-file application.
+Instead, its goal is to give you the power to choose your bundles and structure.
+
+First, you'll probably want to put your PHP classes in an ``src/`` directory. Configure
+your ``composer.json`` file to load from there:
+
+.. code-block:: json
+
+    {
+        "require": {
+            "...": "..."
+        },
+        "autoload": {
+            "psr-4": {
+                "App\\": "src/"
+            }
+        }
+    }
+
+Then, run ``composer dump-autoload`` to dump your new autoload config.
+
+Now, suppose you want to define a custom configuration for your app,
+use Twig and load routes via attributes. Instead of putting *everything*
+in ``index.php``, create a new ``src/Kernel.php`` to hold the kernel.
+Now it looks like this::
+
+    // src/Kernel.php
+    namespace App;
+
+    use App\DependencyInjection\AppExtension;
+    use Symfony\Bundle\FrameworkBundle\FrameworkBundle;
+    use Symfony\Bundle\FrameworkBundle\Kernel\MicroKernelTrait;
+    use Symfony\Bundle\TwigBundle\TwigBundle;
+    use Symfony\Bundle\WebProfilerBundle\WebProfilerBundle;
+    use Symfony\Component\DependencyInjection\ContainerBuilder;
+    use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
+    use Symfony\Component\HttpKernel\Kernel as BaseKernel;
+    use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;
+
+    class Kernel extends BaseKernel
+    {
+        use MicroKernelTrait;
+
+        public function registerBundles(): iterable
+        {
+            yield new FrameworkBundle();
+            yield new TwigBundle();
+
+            if ('dev' === $this->getEnvironment()) {
+                yield new WebProfilerBundle();
+            }
+        }
+
+        protected function build(ContainerBuilder $containerBuilder): void
+        {
+            $containerBuilder->registerExtension(new AppExtension());
+        }
+
+        protected function configureContainer(ContainerConfigurator $container): void
+        {
+            $container->import(__DIR__.'/../config/framework.yaml');
+
+            // register all classes in /src/ as service
+            $container->services()
+                ->load('App\\', __DIR__.'/*')
+                ->autowire()
+                ->autoconfigure()
+            ;
+
+            // configure WebProfilerBundle only if the bundle is enabled
+            if (isset($this->bundles['WebProfilerBundle'])) {
+                $container->extension('web_profiler', [
+                    'toolbar' => true,
+                    'intercept_redirects' => false,
+                ]);
+            }
+        }
+
+        protected function configureRoutes(RoutingConfigurator $routes): void
+        {
+            // import the WebProfilerRoutes, only if the bundle is enabled
+            if (isset($this->bundles['WebProfilerBundle'])) {
+                $routes->import('@WebProfilerBundle/Resources/config/routing/wdt.php', 'php')->prefix('/_wdt');
+                $routes->import('@WebProfilerBundle/Resources/config/routing/profiler.php', 'php')->prefix('/_profiler');
+            }
+
+            // load the routes defined as PHP attributes
+            $routes->import(__DIR__.'/Controller/', 'attribute');
+        }
+
+        // optionally, you can define the getCacheDir() and getLogDir() methods
+        // to override the default locations for these directories
+    }
+
+
+Before continuing, run this command to add support for the new dependencies:
+
+.. code-block:: terminal
+
+    $ composer require symfony/yaml symfony/twig-bundle symfony/web-profiler-bundle
+
+Next, create a new extension class that defines your app configuration and
+add a service conditionally based on the ``foo`` value::
+
+    // src/DependencyInjection/AppExtension.php
+    namespace App\DependencyInjection;
+
+    use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
+    use Symfony\Component\DependencyInjection\ContainerBuilder;
+    use Symfony\Component\DependencyInjection\Extension\AbstractExtension;
+    use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
+
+    class AppExtension extends AbstractExtension
+    {
+        public function configure(DefinitionConfigurator $definition): void
+        {
+            $definition->rootNode()
+                ->children()
+                    ->booleanNode('foo')->defaultTrue()->end()
+                ->end();
+        }
+
+        public function loadExtension(array $config, ContainerConfigurator $containerConfigurator, ContainerBuilder $containerBuilder): void
+        {
+            if ($config['foo']) {
+                $containerBuilder->register('foo_service', \stdClass::class);
+            }
+        }
+    }
+
+Unlike the previous kernel, this loads an external ``config/framework.yaml`` file,
+because the configuration started to get bigger:
+
+.. configuration-block::
+
+    .. code-block:: yaml
+
+        # config/framework.yaml
+        framework:
+            secret: SOME_SECRET
+            profiler: { only_exceptions: false }
+
+    .. code-block:: php
+
+        // config/framework.php
+        namespace Symfony\Component\DependencyInjection\Loader\Configurator;
+
+        return App::config([
+            'framework' => [
+            'secret' => 'SOME_SECRET',
+                'profiler' => ['only_exceptions' => false],
+            ],
+        ]);
+
+This also loads attribute routes from an ``src/Controller/`` directory, which
+has one file in it::
+
+    // src/Controller/MicroController.php
+    namespace App\Controller;
+
+    use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+    use Symfony\Component\HttpFoundation\Response;
+    use Symfony\Component\Routing\Attribute\Route;
+
+    class MicroController extends AbstractController
+    {
+        #[Route('/random/{limit}')]
+        public function randomNumber(int $limit): Response
+        {
+            $number = random_int(0, $limit);
+
+            return $this->render('micro/random.html.twig', [
+                'number' => $number,
+            ]);
+        }
+    }
+
+Template files should live in the ``templates/`` directory at the root of your project.
+This template lives at ``templates/micro/random.html.twig``:
+
+.. code-block:: html+twig
+
+    <!-- templates/micro/random.html.twig -->
+    <!DOCTYPE html>
+    <html>
+        <head>
+            <title>Random action</title>
+        </head>
+        <body>
+            <p>{{ number }}</p>
+        </body>
+    </html>
+
+Finally, you need a front controller to boot and run the application. Create a
+``public/index.php``::
+
+    // public/index.php
+    use App\Kernel;
+    use Symfony\Component\HttpFoundation\Request;
+
+    require __DIR__.'/../vendor/autoload.php';
+
+    $kernel = new Kernel('dev', true);
+    $request = Request::createFromGlobals();
+    $response = $kernel->handle($request);
+    $response->send();
+    $kernel->terminate($request, $response);
+
+That's it! This ``/random/10`` URL will work, Twig will render, and you'll even
+get the web debug toolbar to show up at the bottom. The final structure looks like
+this:
+
+.. code-block:: text
+
+    your-project/
+    ├─ config/
+    │  └─ framework.yaml
+    ├─ public/
+    |  └─ index.php
+    ├─ src/
+    |  ├─ Controller
+    |  |  └─ MicroController.php
+    |  └─ Kernel.php
+    ├─ templates/
+    |  └─ micro/
+    |     └─ random.html.twig
+    ├─ var/
+    |  ├─ cache/
+    │  └─ log/
+    ├─ vendor/
+    │  └─ ...
+    ├─ composer.json
+    └─ composer.lock
+
+As before you can use the :ref:`Symfony local web server <symfony-cli-server>`:
+
+.. code-block:: terminal
+
+    $ symfony server:start
+
+Then visit the page in your browser: http://localhost:8000/random/10

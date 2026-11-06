@@ -1,0 +1,173 @@
+CountryType Field
+=================
+
+The ``CountryType`` is a subset of the ``ChoiceType`` that displays countries
+of the world. As an added bonus, the country names are displayed in the
+language of the user.
+
+The "value" for each country is the two-letter country code.
+
+.. note::
+
+    The locale of your user is guessed using :phpmethod:`Locale::getDefault`
+
+Unlike the ``ChoiceType``, you don't need to specify a ``choices`` option as the
+field type automatically uses all of the countries of the world. You *can* specify
+the option manually, but then you should use the ``ChoiceType`` directly.
+
++---------------------------+-----------------------------------------------------------------------+
+| Rendered as               | can be various tags (see :ref:`forms-reference-choice-tags`)          |
++---------------------------+-----------------------------------------------------------------------+
+| Default invalid message   | Please select a valid country.                                        |
++---------------------------+-----------------------------------------------------------------------+
+| Parent type               | :doc:`ChoiceType </reference/forms/types/choice>`                     |
++---------------------------+-----------------------------------------------------------------------+
+| Class                     | :class:`Symfony\\Component\\Form\\Extension\\Core\\Type\\CountryType` |
++---------------------------+-----------------------------------------------------------------------+
+
+.. include:: /reference/forms/types/options/_debug_form.rst.inc
+
+Basic Usage
+-----------
+
+Use the ``preferred_choices`` option to display one or more countries at the
+top of the list (e.g. the most likely countries based on the user's IP address)::
+
+    use Symfony\Component\Form\Extension\Core\Type\CountryType;
+    // ...
+
+    $builder->add('country', CountryType::class, [
+        'placeholder' => 'Select a country',
+        // display these countries first in the list, but don't select them
+        'preferred_choices' => ['FR', 'BE'],
+        // don't display these countries again in the full list of countries
+        'duplicate_preferred_choices' => false,
+    ]);
+
+Field Options
+-------------
+
+alpha3
+~~~~~~
+
+**type**: ``boolean`` **default**: ``false``
+
+If this option is ``true``, the choice values use the `ISO 3166-1 alpha-3`_
+three-letter codes (e.g. New Zealand = ``NZL``) instead of the default
+`ISO 3166-1 alpha-2`_ two-letter codes (e.g. New Zealand = ``NZ``).
+
+.. include:: /reference/forms/types/options/choice_translation_locale.rst.inc
+
+Overridden Options
+------------------
+
+.. include:: /reference/forms/types/options/choice_loader_intl.rst.inc
+
+.. include:: /reference/forms/types/options/choice_translation_domain_disabled.rst.inc
+
+``choices``
+~~~~~~~~~~~
+
+**default**: ``Symfony\Component\Intl\Countries::getNames()``
+
+The country type defaults the ``choices`` option to the whole list of countries.
+The locale is used to translate the countries names.
+
+.. warning::
+
+    If you want to override the built-in choices of the country type, you
+    will also have to set the ``choice_loader`` option to ``null``.
+
+.. include:: /reference/forms/types/options/invalid_message.rst.inc
+
+Inherited Options
+-----------------
+
+These options inherit from the :doc:`ChoiceType </reference/forms/types/choice>`:
+
+.. include:: /reference/forms/types/options/choice_attr.rst.inc
+
+.. include:: /reference/forms/types/options/choice_filter.rst.inc
+
+.. include:: /reference/forms/types/options/choice_label.rst.inc
+
+.. include:: /reference/forms/types/options/choice_name.rst.inc
+
+.. include:: /reference/forms/types/options/choice_translation_parameters.rst.inc
+
+.. include:: /reference/forms/types/options/choice_value.rst.inc
+
+.. include:: /reference/forms/types/options/choice_type_compound.rst.inc
+
+.. include:: /reference/forms/types/options/duplicate_preferred_choices.rst.inc
+
+.. include:: /reference/forms/types/options/error_bubbling.rst.inc
+
+.. include:: /reference/forms/types/options/expanded.rst.inc
+
+.. include:: /reference/forms/types/options/group_by.rst.inc
+
+.. include:: /reference/forms/types/options/multiple.rst.inc
+
+.. include:: /reference/forms/types/options/placeholder.rst.inc
+
+.. include:: /reference/forms/types/options/placeholder_attr.rst.inc
+
+.. include:: /reference/forms/types/options/preferred_choices.rst.inc
+
+.. include:: /reference/forms/types/options/choice_type_trim.rst.inc
+
+These options inherit from the :doc:`FormType </reference/forms/types/form>`:
+
+.. include:: /reference/forms/types/options/attr.rst.inc
+
+.. include:: /reference/forms/types/options/attr_translation_parameters.rst.inc
+
+.. include:: /reference/forms/types/options/by_reference.rst.inc
+
+.. include:: /reference/forms/types/options/data.rst.inc
+
+.. include:: /reference/forms/types/options/disabled.rst.inc
+
+.. include:: /reference/forms/types/options/empty_data_declaration.rst.inc
+
+The actual default value of this option depends on other field options:
+
+* If ``multiple`` is ``false`` and ``expanded`` is ``false``, then ``''``
+  (empty string);
+* Otherwise ``[]`` (empty array).
+
+.. include:: /reference/forms/types/options/empty_data_description.rst.inc
+
+.. include:: /reference/forms/types/options/error_mapping.rst.inc
+
+.. include:: /reference/forms/types/options/help.rst.inc
+
+.. include:: /reference/forms/types/options/help_attr.rst.inc
+
+.. include:: /reference/forms/types/options/help_html.rst.inc
+
+.. include:: /reference/forms/types/options/help_translation_parameters.rst.inc
+
+.. include:: /reference/forms/types/options/inherit_data.rst.inc
+
+.. include:: /reference/forms/types/options/label.rst.inc
+
+.. include:: /reference/forms/types/options/label_attr.rst.inc
+
+.. include:: /reference/forms/types/options/label_format.rst.inc
+
+.. include:: /reference/forms/types/options/label_html.rst.inc
+
+.. include:: /reference/forms/types/options/label_translation_parameters.rst.inc
+
+.. include:: /reference/forms/types/options/mapped.rst.inc
+
+.. include:: /reference/forms/types/options/required.rst.inc
+
+.. include:: /reference/forms/types/options/row_attr.rst.inc
+
+.. include:: /reference/forms/types/options/choice_type_translation_domain.rst.inc
+
+.. _`ISO 3166-1 alpha-2`: https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2
+.. _`ISO 3166-1 alpha-3`: https://en.wikipedia.org/wiki/ISO_3166-1_alpha-3

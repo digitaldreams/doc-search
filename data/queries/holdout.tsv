@@ -1,0 +1,68 @@
+class	file_regex	needle	query
+para	event_dispatcher\.rst	ImmutableEventDispatcher	freeze a dispatcher so nobody can add more listeners afterwards
+para	components/property_info\.rst	isWritable	find out whether a class attribute can be changed from outside
+para	security\.rst	login_throttling	block brute force password guessing on the sign-in page
+para	doctrine/associations\.rst	$this->products->contains($product)	adding to the collection from the parent entity blows up memory with huge relations
+para	object_mapper\.rst	MapCollection	convert an array of DTOs into an array of entities
+para	console/helpers/questionhelper\.rst	autocomplete a file path	suggest paths dynamically while someone types an answer at a CLI prompt
+para	testing/end_to_end\.rst	PANTHER_CHROME_ARGUMENTS	browser tests fail because the local HTTPS certificate is not trusted
+para	security/ldap\.rst	RoleFetcherInterface	load a person's groups from the directory server with my own service
+para	service_container/advanced_definitions\.rst	vendor-name/package-name	mark a service as outdated so that users of it get a notice
+para	components/yaml\.rst	Yaml::dump	control at what nesting level arrays become one-liners when generating yml
+para	scheduler\.rst	debug:scheduler	list the recurring jobs and when each one runs next
+para	messenger/custom-transport\.rst	ReceivedStamp	prevent an infinite loop when a worker consumes and sends on the same bus
+para	http_client\.rst	MockClientCallback	fake outgoing API calls in functional tests using an invokable class
+para	serializer\.rst	#[Groups]	hide some properties in one API output but show them in another
+para	console\.rst	Symfony\Component\Console\Terminal	check how wide the screen is when testing a CLI task
+para	controller\.rst	Attribute\Serialize	return a plain object from an action and have it converted to JSON automatically
+para	form/form_customization\.rst	form.email.vars.id	read the generated id of an input inside a Twig template
+para	web_link\.rst	rel="preload"	how does the browser know to start fetching a font early
+para	reference/configuration/framework\.rst	concise trace of the main request	add a debugging header showing what the reverse proxy did for ESI subrequests
+para	components/uid\.rst	$invalidValue	get the bad value back when parsing a malformed identifier throws
+para	console/value_resolver\.rst	LoggerInterface $customLogger	pass a parameter into a CLI task through container config bindings
+para	reference/configuration/security\.rst	used as the bind DN	template for the directory bind string with the login as a placeholder
+para	reference/configuration/security\.rst	redirected to (unless use_forward	where do people who are not signed in get sent when opening a protected page
+para	service_container/factories\.rst	NewsletterSenderStaticFactory	build a service by calling a static method of another class
+para	deployment\.rst	Kernel::getProjectDir	the root directory is wrong when the server has no composer manifest
+para	form/type_guesser\.rst	PhpDocTypeGuesser	infer field types from docblock annotations
+para	configuration/multiple_kernels\.rst	createKernel	tests boot the wrong application in a project hosting several apps
+para	console/helpers/cursor\.rst	$cursor->moveUp	move the caret a few lines up in the terminal
+para	reference/constraints/Image\.rst	image width is too big	error text shown when a picture is too wide
+para	form/data_mappers\.rst	DataMapper	input fields must fill the constructor arguments of an immutable object
+para	http_cache/cache_vary\.rst	one representation	serve a different stored copy of the same URL depending on a request header
+para	configuration/env_var_processors\.rst	LowercasingEnvVarProcessor	write my own transformation applied to an environment value
+para	testing/dom_crawler\.rst	input[type=submit]	select submit buttons on a page like jQuery does in a test
+para	components/http_foundation\.rst	HeaderUtils::makeDisposition	send a download whose file name has accented characters
+para	setup/symfony_cli\.rst	.symfony.local.yaml	custom local domain for my development web server
+para	configuration\.rst	legacy_config.php	load another settings file written in a different format
+para	templates\.rst	default_path	change the folder where the view files are looked up
+para	frontend/asset_mapper\.rst	SensioLabs Minify Bundle	shrink my JS and CSS files
+para	setup/file_permissions\.rst	umask()	permission denied writing cache and logs in production
+para	cache\.rst	withSubNamespace	keep separate cached dashboards per user inside one pool
+para	tui/topics/focus\.rst	getFocusManager	cycle between inputs with a key in a terminal interface
+para	reference/constraints/Collection\.rst	allowMissingFields	permit some keys to be absent when checking an array
+para	forms\.rst	isSynchronized	the form submits but the object stays unchanged
+para	messenger\.rst	DeduplicateStamp	avoid handling the same job twice
+para	reference/formats/yaml\.rst	literal style	write a multi-line string in a config file that preserves newlines
+para	reference/constraints/Uuid\.rst	alternate input formats	accept unique identifiers with unusual dash grouping
+para	tui/style/style\.rst	colors, text decoration	change border and padding of a widget in a terminal interface
+ident	reference/constraints/CssColor\.rst	hex_long	hex_long
+ident	reference/constraints/CssColor\.rst	Assert\CssColor::HEX_LONG	Assert\CssColor::HEX_LONG
+ident	reference/twig_reference\.rst	file_excerpt	file_excerpt
+ident	console/helpers/cursor\.rst	moveDown	moveDown
+ident	reference/configuration/twig\.rst	config:dump-reference twig	config:dump-reference twig
+ident	reference/constraints/Range\.rst	notInRangeMessage	notInRangeMessage
+ident	components/phpunit_bridge\.rst	debug-class-loader	debug-class-loader
+ident	components/asset\.rst	RequestStackContext	RequestStackContext
+ident	messenger/custom-transport\.rst	SendMessageMiddleware	SendMessageMiddleware
+ident	reference/configuration/framework\.rst	version_strategy	assets version_strategy
+ident	reference/configuration/framework\.rst	trace_level	trace_level
+ident	http_client\.rst	MockResponse	MockResponse
+ident	components/http_kernel\.rst	ArgumentResolverInterface::getArguments	ArgumentResolverInterface::getArguments
+ident	validation/custom_constraint\.rst	PasswordRequirements	PasswordRequirements compound constraint
+ident	components/filesystem\.rst	Filesystem::symlink	Filesystem::symlink
+ident	mercure\.rst	Update value object	Mercure Update Publisher
+ident	expression_language\.rst	composer require symfony/expression-language	symfony/expression-language
+ident	(security|rate_limiter)\.rst	composer require symfony/rate-limiter	symfony/rate-limiter
+ident	components/type_info\.rst	extracts type information	TypeInfo component
+ident	components/property_info\.rst	isReadable	isReadable

@@ -1,0 +1,356 @@
+How to Override Symfony's default Directory Structure
+=====================================================
+
+Symfony applications have the following default directory structure, but you can
+override it to create your own structure:
+
+.. code-block:: text
+
+    your-project/
+    ├─ assets/
+    ├─ bin/
+    │  └─ console
+    ├─ config/
+    ├─ public/
+    │  └─ index.php
+    ├─ src/
+    │  └─ ...
+    ├─ templates/
+    ├─ tests/
+    ├─ translations/
+    ├─ var/
+    │  ├─ cache/
+    │  ├─ log/
+    │  └─ ...
+    ├─ vendor/
+    └─ .env
+
+.. _override-env-dir:
+
+Override the Environment (DotEnv) Files Directory
+-------------------------------------------------
+
+By default, the :ref:`.env configuration file <config-dot-env>` is located at
+the root directory of the project. If you store it in a different location,
+define the ``runtime.dotenv_path`` option in the ``composer.json`` file:
+
+.. code-block:: json
+
+    {
+        "...": "...",
+        "extra": {
+            "...": "...",
+            "runtime": {
+                "dotenv_path": "my/custom/path/to/.env"
+            }
+        }
+    }
+
+Then, update your Composer files (running ``composer dump-autoload``, for instance),
+so that the ``vendor/autoload_runtime.php`` file gets regenerated with the new
+``.env`` path.
+
+You can also set up different ``.env`` paths for your console and web server
+calls. Edit the ``public/index.php`` and/or ``bin/console`` files to define the
+new file path.
+
+Console script::
+
+    // bin/console
+
+    // ...
+    $_SERVER['APP_RUNTIME_OPTIONS']['dotenv_path'] = 'some/custom/path/to/.env';
+
+    require_once dirname(__DIR__).'/vendor/autoload_runtime.php';
+    // ...
+
+Web front-controller::
+
+    // public/index.php
+
+    // ...
+    $_SERVER['APP_RUNTIME_OPTIONS']['dotenv_path'] = 'another/custom/path/to/.env';
+
+    require_once dirname(__DIR__).'/vendor/autoload_runtime.php';
+    // ...
+
+.. _override-bin-dir:
+
+Override the Binary Directory
+-----------------------------
+
+You can change the binary directory by adding the ``extra.bin-dir`` option
+in the ``composer.json`` file:
+
+.. code-block:: json
+
+    {
+        "...": "...",
+        "extra": {
+            "...": "...",
+            "bin-dir": "my_new_bin_dir"
+        }
+    }
+
+.. _override-config-dir:
+
+Override the Configuration Directory
+------------------------------------
+
+You can change the configuration directory by adding the ``extra.config-dir`` option
+in the ``composer.json`` file:
+
+.. code-block:: json
+
+    {
+        "...": "...",
+        "extra": {
+            "...": "...",
+            "config-dir": "my_new_config_dir"
+        }
+    }
+
+.. _override-cache-dir:
+
+Override the Cache Directory
+----------------------------
+
+Changing the cache directory can be achieved by overriding the
+``getCacheDir()`` method in the ``Kernel`` class of your application::
+
+    // src/Kernel.php
+
+    // ...
+    class Kernel extends BaseKernel
+    {
+        // ...
+
+        public function getCacheDir(): string
+        {
+            return dirname(__DIR__).'/var/'.$this->environment.'/cache';
+        }
+    }
+
+In this code, ``$this->environment`` is the current environment (i.e. ``dev``).
+In this case you have changed the location of the cache directory to
+``var/{environment}/cache/``.
+
+You can also change the cache directory by defining an environment variable
+named ``APP_CACHE_DIR`` whose value is the full path of the cache folder.
+
+.. warning::
+
+    You should keep the cache directory different for each environment,
+    otherwise some unexpected behavior may happen. Each environment generates
+    its own cached configuration files, and so each needs its own directory to
+    store those cache files.
+
+In case you have multiple frontend servers using the same shared filesystem, you
+can make use of the :method:`Symfony\\Component\\HttpKernel\\Kernel::getShareDir` method to
+get a shared directory for cache and shared data. The shared directory can be set
+by overriding an environment variable named ``APP_SHARE_DIR`` whose value is the full
+path of the shared folder. This directory is also accessible as a container parameter
+named ``%kernel.share_dir%``.
+
+.. _override-logs-dir:
+
+Override the Log Directory
+--------------------------
+
+Overriding the ``var/log/`` directory is almost the same as overriding the
+``var/cache/`` directory.
+
+You can do it overriding the ``getLogDir()`` method in the ``Kernel`` class of
+your application::
+
+    // src/Kernel.php
+
+    // ...
+    class Kernel extends BaseKernel
+    {
+        // ...
+
+        public function getLogDir(): string
+        {
+            return dirname(__DIR__).'/var/'.$this->environment.'/log';
+        }
+    }
+
+Here you have changed the location of the directory to ``var/{environment}/log/``.
+
+You can also change the log directory defining an environment variable named
+``APP_LOG_DIR`` whose value is the full path of the log folder.
+
+.. _override-src-dir:
+
+Override the Source Directory
+-----------------------------
+
+You can change the source directory by adding the ``extra.src-dir`` option
+and updating the ``autoload.psr-4`` option in the ``composer.json`` file:
+
+.. code-block:: json
+
+    {
+        "...": "...",
+        "autoload": {
+            "psr-4": {
+                "App\\": "my_new_src_dir/"
+            }
+        },
+        "extra": {
+            "...": "...",
+            "src-dir": "my_new_src_dir"
+        }
+    }
+
+.. tip::
+
+    Don't forget to run the ``composer dump-autoload`` command once ``autoload.psr-4``
+    has been changed.
+
+.. _override-templates-dir:
+
+Override the Templates Directory
+--------------------------------
+
+If your templates are not stored in the default ``templates/`` directory, use
+the :ref:`twig.default_path <config-twig-default-path>` configuration
+option to define your own templates directory (use :ref:`twig.paths <config-twig-paths>`
+for multiple directories):
+
+.. configuration-block::
+
+    .. code-block:: yaml
+
+        # config/packages/twig.yaml
+        twig:
+            default_path: "%kernel.project_dir%/resources/views"
+
+    .. code-block:: php
+
+        // config/packages/twig.php
+        namespace Symfony\Component\DependencyInjection\Loader\Configurator;
+
+        return App::config([
+            'twig' => [
+                'default_path' => '%kernel.project_dir%/resources/views',
+            ],
+        ]);
+
+Override the Translations Directory
+-----------------------------------
+
+If your translation files are not stored in the default ``translations/``
+directory, use the :ref:`framework.translator.default_path <reference-translator-default_path>`
+configuration option to define your own translations directory (use :ref:`framework.translator.paths <reference-translator-paths>` for multiple directories):
+
+.. configuration-block::
+
+    .. code-block:: yaml
+
+        # config/packages/translation.yaml
+        framework:
+            translator:
+                # ...
+                default_path: "%kernel.project_dir%/i18n"
+
+    .. code-block:: php
+
+        // config/packages/translation.php
+        namespace Symfony\Component\DependencyInjection\Loader\Configurator;
+
+        return App::config([
+            'framework' => [
+                'translator' => [
+                    'default_path' => '%kernel.project_dir%/i18n',
+                ],
+            ],
+        ]);
+
+.. _override-web-dir:
+.. _override-the-web-directory:
+
+Override the Public Directory
+-----------------------------
+
+If you need to rename or move your ``public/`` directory, the only thing you
+need to guarantee is that the path to the ``vendor/`` directory is still correct in
+your ``index.php`` front controller. If you renamed the directory, you're fine.
+But if you moved it in some way, you may need to modify these paths inside those
+files::
+
+    require_once __DIR__.'/../path/to/vendor/autoload_runtime.php';
+
+You also need to change the ``extra.public-dir`` option in the ``composer.json``
+file:
+
+.. code-block:: json
+
+    {
+        "...": "...",
+        "extra": {
+            "...": "...",
+            "public-dir": "my_new_public_dir"
+        }
+    }
+
+.. tip::
+
+    Some shared hosts have a ``public_html/`` web directory root. Renaming
+    your web directory from ``public/`` to ``public_html/`` is one way to make
+    your Symfony project work on your shared host. Another way is to deploy
+    your application to a directory outside of your web root, delete your
+    ``public_html/`` directory, and then replace it with a symbolic link to
+    the ``public/`` dir in your project.
+
+.. _override-assets-dir:
+
+Override the Assets Directory
+-----------------------------
+
+If you rename or move the ``assets/`` directory, update its path in:
+
+* AssetMapper: the :ref:`asset_mapper.paths <mapping-assets>` option and the
+  ``importmap.php`` file;
+* Webpack Encore: the ``webpack.config.js`` file;
+* StimulusBundle: the ``stimulus.controller_paths`` and
+  ``stimulus.controllers_json`` options.
+
+Then, add the ``extra.assets-dir`` option in the ``composer.json`` file so
+Symfony Flex finds the ``controllers.json`` file when you install or remove
+UX packages:
+
+.. code-block:: json
+
+    {
+        "...": "...",
+        "extra": {
+            "...": "...",
+            "assets-dir": "my_new_assets_dir"
+        }
+    }
+
+Flex recipes still copy their files to ``assets/``, so move those files to your
+new directory after installing a package.
+
+Override the Vendor Directory
+-----------------------------
+
+To override the ``vendor/`` directory, you need to define the ``vendor-dir``
+option in your ``composer.json`` file like this:
+
+.. code-block:: json
+
+    {
+        "config": {
+            "bin-dir": "bin",
+            "vendor-dir": "/some/dir/vendor"
+        }
+    }
+
+.. tip::
+
+    This is useful when you develop inside a virtual machine (such as VirtualBox
+    or VMware) that cannot use NFS. Moving the ``vendor/`` directory out of the
+    slow shared folder and into the guest machine greatly improves performance.

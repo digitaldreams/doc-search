@@ -1,0 +1,275 @@
+EnumType Field
+==============
+
+A multi-purpose field used to allow the user to "choose" one or more options
+defined in a `PHP enumeration`_. It extends the :doc:`ChoiceType </reference/forms/types/choice>`
+field and defines the same options.
+
++---------------------------+----------------------------------------------------------------------+
+| Rendered as               | can be various tags (see below)                                      |
++---------------------------+----------------------------------------------------------------------+
+| Default invalid message   | The selected choice is invalid.                                      |
++---------------------------+----------------------------------------------------------------------+
+| Parent type               | :doc:`ChoiceType </reference/forms/types/choice>`                    |
++---------------------------+----------------------------------------------------------------------+
+| Class                     | :class:`Symfony\\Component\\Form\\Extension\\Core\\Type\\EnumType`   |
++---------------------------+----------------------------------------------------------------------+
+
+.. include:: /reference/forms/types/options/_debug_form.rst.inc
+
+Example Usage
+-------------
+
+Before using this field, you'll need to have some PHP enumeration (or "enum" for
+short) defined somewhere in your application. This enum has to be of type
+"backed enum", where each keyword defines a scalar value such as a string::
+
+    // src/Config/TextAlign.php
+    namespace App\Config;
+
+    enum TextAlign: string
+    {
+        case Left = 'Left aligned';
+        case Center = 'Center aligned';
+        case Right = 'Right aligned';
+    }
+
+Instead of using the values of the enumeration in a ``choices`` option, the
+``EnumType`` only requires defining the ``class`` option pointing to the enum::
+
+    use App\Config\TextAlign;
+    use Symfony\Component\Form\Extension\Core\Type\EnumType;
+    // ...
+
+    $builder->add('alignment', EnumType::class, ['class' => TextAlign::class]);
+
+This will display a ``<select>`` tag with the three possible values defined in
+the ``TextAlign`` enum. Use the `expanded`_ and `multiple`_ options to display
+these values as ``<input type="checkbox">`` or ``<input type="radio">``.
+
+The label displayed in the ``<option>`` elements of the ``<select>`` is the enum
+name. PHP defines some strict rules for these names (e.g. they can't contain
+dots or spaces). If you need more flexibility for these labels, your enum can
+implement ``TranslatableInterface`` to translate or display custom labels::
+
+    // src/Config/TextAlign.php
+    namespace App\Config;
+
+    use Symfony\Contracts\Translation\TranslatableInterface;
+    use Symfony\Contracts\Translation\TranslatorInterface;
+
+    enum TextAlign: string implements TranslatableInterface
+    {
+        case Left = 'Left aligned';
+        case Center = 'Center aligned';
+        case Right = 'Right aligned';
+
+        public function trans(TranslatorInterface $translator, ?string $locale = null): string
+        {
+            // Translate enum from name (Left, Center or Right)
+            return $translator->trans($this->name, locale: $locale);
+
+            // Translate enum using custom labels
+            return match ($this) {
+                self::Left  => $translator->trans('text_align.left.label', locale: $locale),
+                self::Center => $translator->trans('text_align.center.label', locale: $locale),
+                self::Right  => $translator->trans('text_align.right.label', locale: $locale),
+            };
+        }
+    }
+
+Field Options
+-------------
+
+class
+~~~~~
+
+**type**: ``string`` **default**: (it has no default)
+
+The fully-qualified class name (FQCN) of the PHP enum used to get the values
+displayed by this form field.
+
+Overridden Options
+------------------
+
+``choice_label``
+~~~~~~~~~~~~~~~~
+
+**type**: ``string``, ``callable``, ``false`` or :class:`Symfony\\Component\\PropertyAccess\\PropertyPath` **default**: a callable that returns the enum case name
+
+The default callable uses the enum case name as the label, or the enum case
+itself if it implements ``TranslatableInterface``, as shown above. If you
+provide string keys in ``choices``, it uses those keys as labels instead.
+To customize the labels, see :ref:`reference-form-choice-label`.
+
+``choice_value``
+~~~~~~~~~~~~~~~~
+
+**type**: ``callable``, ``string`` or :class:`Symfony\\Component\\PropertyAccess\\PropertyPath` **default**: a callable for backed enums, ``null`` otherwise
+
+For backed enums, the default callable uses the backing value of each enum
+case as its choice value.
+
+``choices``
+~~~~~~~~~~~
+
+**type**: ``array`` **default**: all cases of the enum
+
+By default, this field displays all the cases of the related PHP enum. Use this
+option to explicitly define which options to display::
+
+    use App\Config\TextAlign;
+    use Symfony\Component\Form\Extension\Core\Type\EnumType;
+    // ...
+
+    $builder->add('alignment', EnumType::class, [
+        'choices' => [
+            TextAlign::Left,
+            TextAlign::Right,
+        ],
+    ]);
+
+You can add keys to the ``choices`` array, which will then be used as labels::
+
+    'choices' => [
+        'Align to the left' => TextAlign::Left,
+        'Align to the right' => TextAlign::Right,
+    ],
+
+Inherited Options
+-----------------
+
+These options inherit from the :doc:`ChoiceType </reference/forms/types/choice>`:
+
+.. include:: /reference/forms/types/options/choice_attr.rst.inc
+
+.. include:: /reference/forms/types/options/choice_filter.rst.inc
+
+.. include:: /reference/forms/types/options/choice_loader.rst.inc
+
+.. include:: /reference/forms/types/options/choice_name.rst.inc
+
+.. include:: /reference/forms/types/options/choice_translation_domain_enabled.rst.inc
+
+.. include:: /reference/forms/types/options/choice_translation_parameters.rst.inc
+
+.. include:: /reference/forms/types/options/choice_type_compound.rst.inc
+
+.. include:: /reference/forms/types/options/duplicate_preferred_choices.rst.inc
+
+.. include:: /reference/forms/types/options/error_bubbling.rst.inc
+
+.. include:: /reference/forms/types/options/expanded.rst.inc
+
+``group_by``
+~~~~~~~~~~~~
+
+**type**: ``string`` or ``callable`` or :class:`Symfony\\Component\\PropertyAccess\\PropertyPath` **default**: ``null``
+
+You can group the ``<option>`` elements of a ``<select>`` into ``<optgroup>``
+by passing a multi-dimensional array to ``choices``. See the
+:ref:`Grouping Options <form-choices-simple-grouping>` section about that.
+
+The ``group_by`` option is an alternative way to group choices, which gives you
+a bit more flexibility.
+
+Let's add a few cases to our ``TextAlign`` enumeration::
+
+    // src/Config/TextAlign.php
+    namespace App\Config;
+
+    enum TextAlign: string
+    {
+        case UpperLeft = 'Upper Left aligned';
+        case LowerLeft = 'Lower Left aligned';
+
+        case Center = 'Center aligned';
+
+        case UpperRight = 'Upper Right aligned';
+        case LowerRight = 'Lower Right aligned';
+    }
+
+You can now group choices by the enum case value::
+
+    use App\Config\TextAlign;
+    use Symfony\Component\Form\Extension\Core\Type\EnumType;
+    // ...
+
+    $builder->add('alignment', EnumType::class, [
+        'class' => TextAlign::class,
+        'group_by' => function(TextAlign $choice, int $key, string $value): ?string {
+            if (str_starts_with($value, 'Upper')) {
+                return 'Upper';
+            }
+
+            if (str_starts_with($value, 'Lower')) {
+                return 'Lower';
+            }
+
+            return 'Other';
+        }
+    ]);
+
+This callback will group choices in 3 categories: ``Upper``, ``Lower`` and ``Other``.
+
+If you return ``null``, the option won't be grouped.
+
+.. include:: /reference/forms/types/options/choice_type_invalid_message.rst.inc
+
+.. include:: /reference/forms/types/options/multiple.rst.inc
+
+.. include:: /reference/forms/types/options/placeholder.rst.inc
+
+.. include:: /reference/forms/types/options/placeholder_attr.rst.inc
+
+.. include:: /reference/forms/types/options/preferred_choices.rst.inc
+
+.. include:: /reference/forms/types/options/choice_type_trim.rst.inc
+
+These options inherit from the :doc:`FormType </reference/forms/types/form>`:
+
+.. include:: /reference/forms/types/options/attr.rst.inc
+
+.. include:: /reference/forms/types/options/attr_translation_parameters.rst.inc
+
+.. include:: /reference/forms/types/options/by_reference.rst.inc
+
+.. include:: /reference/forms/types/options/data.rst.inc
+
+.. include:: /reference/forms/types/options/disabled.rst.inc
+
+.. include:: /reference/forms/types/options/empty_data_declaration.rst.inc
+
+.. include:: /reference/forms/types/options/empty_data_description.rst.inc
+
+.. include:: /reference/forms/types/options/error_mapping.rst.inc
+
+.. include:: /reference/forms/types/options/help.rst.inc
+
+.. include:: /reference/forms/types/options/help_attr.rst.inc
+
+.. include:: /reference/forms/types/options/help_html.rst.inc
+
+.. include:: /reference/forms/types/options/help_translation_parameters.rst.inc
+
+.. include:: /reference/forms/types/options/inherit_data.rst.inc
+
+.. include:: /reference/forms/types/options/label.rst.inc
+
+.. include:: /reference/forms/types/options/label_attr.rst.inc
+
+.. include:: /reference/forms/types/options/label_format.rst.inc
+
+.. include:: /reference/forms/types/options/label_html.rst.inc
+
+.. include:: /reference/forms/types/options/label_translation_parameters.rst.inc
+
+.. include:: /reference/forms/types/options/mapped.rst.inc
+
+.. include:: /reference/forms/types/options/required.rst.inc
+
+.. include:: /reference/forms/types/options/row_attr.rst.inc
+
+.. include:: /reference/forms/types/options/choice_type_translation_domain.rst.inc
+
+.. _`PHP enumeration`: https://www.php.net/manual/language.enumerations.php

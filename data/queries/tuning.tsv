@@ -1,0 +1,101 @@
+class	file_regex	needle	query
+para	reference/constraints/DisableAutoMapping\.rst	#[Assert\DisableAutoMapping]	stop the validator from inferring rules out of Doctrine column metadata on one class
+para	deployment\.rst	--optimize-autoloader	composer flag that speeds up class loading when shipping to production
+para	service_container\.rst	PhpDumper	avoid rebuilding the DI container on each request in a standalone PHP app
+para	frontend/asset_mapper\.rst	importmap:outdated	see which third-party JavaScript packages have newer releases available
+para	string\.rst	SluggerInterface $slugger	get a service that turns titles into URL-friendly strings using autowiring
+para	components/options_resolver\.rst	to set the port to 465 if SSL	make a default value depend on what the user passed for a different setting
+para	workflow/workflow-and-state-machine\.rst	pull_request	example config modelling code review stages as a single-state process
+para	reference/formats/message_format\.rst	selectordinal	print 1st 2nd 3rd in a translated sentence
+para	console\.rst	Command::interact	which hooks run before execute in a CLI command and in what order
+para	tui/topics/keybindings\.rst	later layers override earlier ones	if a shortcut is defined globally and on a widget, which one wins in a terminal UI
+para	deployment/proxies\.rst	REMOTE_ADDR	app sees the IP of the AWS load balancer instead of the real visitor
+para	controller\.rst	$session->set('user_id', 42)	remember a value for a visitor between two page loads inside a controller
+para	serializer/streaming_json\.rst	ghost objects	read huge JSON files without loading everything into memory
+para	frontend/encore/versioning\.rst	entrypoints.json	find the hashed asset file names when not rendering with Twig helpers
+para	bundles\.rst	ln -s	develop a published package locally against an application that already installed it
+para	reference/configuration/framework\.rst	[async, audit]	send one message class to two different queues in config
+para	workflow\.rst	guard	stop a transition from being applied based on a custom rule
+para	profiler\.rst	data_collector/template.html.twig	show my own metric in the debug toolbar at the bottom of the page
+para	reference/configuration/security\.rst	distinguished name	client certificate login: pick which part of the certificate subject becomes the username
+para	cache/adapters/filesystem_adapter\.rst	FilesystemTagAwareAdapter	invalidate groups of cache entries stored on local disk efficiently
+para	web_link\.rst	GenericLinkProvider	add preload hints to the response from PHP code
+para	doctrine/associations\.rst	ArrayCollection	why do I initialise a collection object in the constructor of an entity with related items
+para	performance\.rst	.container.dumper.inline_factories	merge the compiled services into one PHP file so opcache preloading works better
+para	console/verbosity\.rst	--silent	run a CLI task with absolutely no output, including errors
+para	http_cache\.rst	POST requests are generally considered uncacheable	can a reverse proxy store the answer to a form submission?
+para	security\.rst	PUBLIC_ACCESS	let not-logged-in visitors reach the sign-in page while everything else requires a role
+para	security/login_link\.rst	LoginLinkNotification	email a user a magic sign-in URL
+para	reference/forms/types/file\.rst	UploadedFile	move the attachment a user submitted to a permanent directory
+para	session\.rst	FlashBagInterface::peek	read a one-time notice without removing it from the bag
+para	html_sanitizer\.rst	HtmlSanitizerInterface	clean untrusted rich text from users to prevent XSS
+para	templates\.rst	hinclude.js	load a fragment of a page in the browser after the page has rendered
+para	security/ldap\.rst	form_login_ldap	authenticate employees against Active Directory using a web sign-in page
+para	http_client\.rst	DnsResolvingHttpClient	control how host names get resolved to addresses for outgoing requests
+para	components/runtime\.rst	ReactPHPRunner	serve my app from an event-loop server by writing a custom bootstrap
+para	components/options_resolver\.rst	setDeprecated	warn users that a setting they pass is outdated and going away
+para	migration\.rst	routing.loader	make URLs of my old application appear in the new framework's route list
+para	components/http_kernel\.rst	is the job of the	how is the code that handles a URL chosen during the request lifecycle
+para	components/var_dumper\.rst	dump and die	print a variable and immediately stop the script
+para	reference/configuration/framework\.rst	Whether to enable CSRF protection for all forms	turn off anti-forgery tokens on every form with one config key
+para	reference/constraints/Url\.rst	top-level domain	reject addresses like https://foobar that have no .com or similar ending
+para	validation/custom_constraint\.rst	getTargets	write my own rule which validates a whole object rather than one property
+para	reference/twig_reference\.rst	workflow_transition_blockers	show in a template the reasons a state change is not available
+para	rate_limiter\.rst	token_bucket	throttle free API clients differently from paying customers
+para	reference/forms/types/form\.rst	by_reference to false	my setter is not called when editing a nested object in a form
+para	configuration\.rst	debug:dotenv	figure out which .env file a value came from
+para	components/filesystem\.rst	in an atomic manner	write a file so that readers never see a half-written version
+para	form/form_flow\.rst	PreviousFlowType	build a wizard with a back button across several pages of inputs
+para	reference/constraints/Valid\.rst	sub-objects	also check rules on objects nested inside the one I am checking
+para	forms\.rst	I agree with these terms	extra checkbox on a page that should not be saved to the database entity
+para	configuration/secrets\.rst	vault	keep API keys encrypted in the repository rather than in plain environment variables
+para	event_dispatcher\.rst	TokenSubscriber	check an API token before any action runs in certain controllers
+para	reference/forms/types/language\.rst	choice_self_translation	show each language name in its own language in a dropdown
+para	mailer\.rst	DraftEmail	let people download a message as an .eml file to open in their mail client
+para	notifier\.rst	NotificationAssertionsTrait	verify in automated tests that an SMS or chat alert was sent
+para	service_container/decoration\.rst	LoggingMailer	wrap an existing service to add behaviour and still call the original
+para	http_cache/validation\.rst	fingerprint	how to tell if a client's copy is still current using a hash of the content
+para	reference/configuration/framework\.rst	Configures attributes as allowed globally	permit data-id on any tag when cleaning HTML through configuration
+para	security/passwords\.rst	recovery_code	use a separate hashing algorithm for backup codes that are not tied to a user class
+para	messenger\.rst	CQRS	separate reads from writes with several dedicated message buses
+para	object_mapper\.rst	TargetClass	produce public and admin views of an entity from attributes without serialization groups
+para	serializer\.rst	allow_extra_attributes: false	fail when incoming JSON has unknown fields, set once for the whole application
+para	http_client\.rst	HttpClientInterface::stream	download a large ISO piece by piece instead of waiting for the full body
+ident	messenger\.rst	messenger:show	messenger:show
+ident	messenger\.rst	messenger:failed:show	messenger:failed:show command
+ident	messenger\.rst	#[AsMessageHandler]	#[AsMessageHandler]
+ident	messenger\.rst	MESSENGER_TRANSPORT_DSN	MESSENGER_TRANSPORT_DSN
+ident	messenger\.rst	messenger:stop-workers	messenger:stop-workers
+ident	messenger\.rst	ErrorDetailsStamp::getFlattenException	getFlattenException
+ident	controller\.rst	#[MapRequestPayload]	#[MapRequestPayload]
+ident	controller\.rst	#[MapQueryParameter]	MapQueryParameter attribute
+ident	reference/configuration/framework\.rst	max_host_connections	max_host_connections
+ident	reference/configuration/framework\.rst	terminate_on_cache_hit option is deprecated	terminate_on_cache_hit
+ident	reference/configuration/framework\.rst	_method request parameter	http_method_override
+ident	reference/configuration/security\.rst	erase_credentials option is deprecated	erase_credentials
+ident	reference/constraints/Length\.rst	minMessage	Assert\Length minMessage
+ident	reference/constraints/GreaterThan\.rst	propertyPath	GreaterThan propertyPath option
+ident	reference/constraints/GreaterThanOrEqual\.rst	consecutive	GreaterThanOrEqual value option array
+ident	reference/constraints/IsNull\.rst	exactly equal to null	IsNull constraint
+ident	reference/constraints/ExpressionSyntax\.rst	allowedVariables	ExpressionSyntax allowedVariables
+ident	reference/forms/types/enum\.rst	placeholder_attr	EnumType placeholder_attr
+ident	reference/forms/types/choice\.rst	ChoiceList::filter	ChoiceType choice_filter
+ident	reference/twig_reference\.rst	emojify	emojify filter
+ident	webhook\.rst	mailer.webhook.request_parser.brevo	mailer.webhook.request_parser.brevo
+ident	mailer\.rst	mandrill+api://KEY@default	mandrill+api
+ident	lock\.rst	DoctrineDbalStore	Symfony\Component\Lock\Store\DoctrineDbalStore
+ident	console/style\.rst	SymfonyStyle::tree	SymfonyStyle::tree
+ident	components/config/definition\.rst	IntegerNodeDefinition::min	IntegerNodeDefinition::min
+ident	testing\.rst	assertHttpClientRequest	assertHttpClientRequest
+ident	testing\.rst	assertResponseIsSuccessful	assertResponseIsSuccessful
+ident	security\.rst	#[IsGranted	#[IsGranted]
+ident	service_container\.rst	debug:autowiring	debug:autowiring
+ident	service_container/autowiring\.rst	#[Autowire	#[Autowire] attribute
+ident	configuration/secrets\.rst	secrets:set	secrets:set
+ident	cache\.rst	cache:pool:clear	cache:pool:clear
+ident	scheduler\.rst	composer require symfony/scheduler	symfony/scheduler install
+ident	frontend/encore/installation\.rst	ESM-only	Encore ESM-only
+ident	expression_language\.rst	someArray[3].someMethod('bar')	someArray[3].someMethod
+ident	reference/dic_tags\.rst	kernel.event_listener	kernel.event_listener tag
+ident	routing\.rst	debug:router	debug:router
+ident	doctrine\.rst	doctrine:migrations:migrate	doctrine:migrations:migrate

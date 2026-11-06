@@ -1,0 +1,78 @@
+class	file_regex	needle	query
+para	frontend/encore/sourcemaps\.rst	Source maps allow browsers	browser devtools should show my uncompiled stylesheet and script code when debugging
+para	logging\.rst	rotating_file	stop log files growing forever by starting a new file each day
+para	reference/forms/types/.*\.rst	help_attr	add a css class to the element showing a form field's hint text
+para	cache\.rst	expiresAfter	make a stored value vanish after sixty seconds
+para	reference/constraints/Collection\.rst	validate different keys	apply different validation rules to each key of an array
+para	reference/constraints/.*\.rst	applied to the given value before	strip whitespace from a string before checking how long it is
+para	(controller|components/http_kernel|create_framework/http_kernel_httpkernel_class|reference/events)\.rst	kernel.view	what happens if an action returns something that is not an HTTP reply object
+para	(reference/constraints/.*|validation/severity)\.rst	payload	attach custom severity information to a failed validation rule
+para	reference/constraints/.*\.rst	Associative arrays	can a comparison rule compare against a keyed array
+para	cache/adapters/php_array_cache_adapter\.rst	PhpArrayAdapter	serve read-mostly cached data from opcode memory after a warmup
+para	rate_limiter\.rst	token bucket	budget refills steadily over time and each request spends from it
+para	frontend/encore/copy-files\.rst	logoPath	get the final public URL of a picture from within my bundled JS
+para	console/value_resolver\.rst	MapDateTime	restrict which date format a CLI argument will accept
+para	(reference/constraints/Compound|validation/custom_constraint)\.rst	PasswordRequirements	reuse one named group of password rules in several places
+para	reference/configuration/kernel\.rst	kernel.runtime_mode.worker	tell if code is running in a persistent process mode rather than per request
+para	best_practices\.rst	best practices for developing web applications	recommended conventions for building apps from the framework's creators
+para	(http_cache/varnish|http_cache)\.rst	HTTP accelerator	replace the built-in gateway cache with another reverse proxy product
+para	service_container/decoration\.rst	use a stack to decorate an existing service	wrap an existing service with a chain of several layers configured together
+para	testing/insulating_clients\.rst	insulate()	two simulated browsers in a test interfere because of shared global state
+para	components/var_dumper\.rst	VAR_DUMPER_FORMAT	send debug output to a separate process without changing the app config
+para	security/user_checkers\.rst	Symfony calls user checkers on every authentication	why does my post-login account check run on each API request
+para	(reference/constraints/Sequentially|validation/sequence_provider)\.rst	Sequentially	stop validating a field after the first rule that fails
+para	tui/integrations/revolt\.rst	amphp/process	non-blocking HTTP calls and subprocesses inside a terminal app
+para	form/data_transformers\.rst	IssueSelectorType	package a string to entity conversion into a reusable field
+para	form/create_custom_field_type\.rst	ShippingType	use a newly written field class inside another form
+para	reference/dic_tags\.rst	container.hot_path	mark services as always needed during bootstrap for speed
+para	reference/constraints/WordCount\.rst	words or less	error text when a value has too many words
+para	reference/formats/message_format\.rst	alternates between	how do curly braces switch between plain text and variables in an ICU select
+para	frontend/encore/reactjs\.rst	enableReactPreset	compile JSX components using webpack
+para	components/yaml\.rst	ParseException	turn a config format string into a PHP array and handle syntax errors
+para	(cache/adapters/redis_adapter|cache)\.rst	igbinary	speed up how redis cache items are serialized
+para	frontend/encore/faq\.rst	webpackJsonp	browser console error because the webpack bootstrap script tag is missing
+para	validation\.rst	apply to the entire class	validation rule that applies to the object as a whole rather than one property
+para	(security/form_login|reference/configuration/security)\.rst	failure_path	send people somewhere else when they type a wrong password
+para	form/unit_testing\.rst	PreloadedExtension	test a form type that has constructor dependencies
+para	(tui/widgets/editor|tui/cheat_sheet)\.rst	Insert newline	which key inserts a line break in the multi-line text widget
+para	reference/forms/types/.*\.rst	help message for the form field	show hint text under a form field
+para	cache/adapters/doctrine_dbal_adapter\.rst	DoctrineDbalAdapter	store cached items in an SQL table
+para	controller/forwarding\.rst	forward()	call another action internally without a browser redirect
+para	web_link\.rst	Link HTTP headers	hint the browser about CSS and JS it will need using response headers
+para	reference/constraints/(Not)?IdenticalTo\.rst	compared_value_type	placeholders available in the strict equality error message
+para	reference/constraints/EnableAutoMapping\.rst	EnableAutoMapping	have the validator derive rules from database column metadata for one class
+para	tui/topics/keybindings\.rst	getDefaultKeybindings	where are a widget's built-in key mappings defined
+para	tui/topics/tick_loop\.rst	onTick	poll a background job result on each frame of a terminal UI then stop
+para	reference/constraints/Time\.rst	withSeconds	accept hours and minutes only when validating a time
+para	(logging/monolog_exclude_http_codes|logging/monolog_email)\.rst	excluded_http_codes	stop 403 and 404 errors flooding the logs
+para	setup/flex\.rst	legacy Symfony Standard Edition	move an old standard edition project to the new recipe tool
+para	form/bootstrap4\.rst	switch-custom	render a checkbox as a toggle in bootstrap forms
+para	tui/(widgets/input|widgets/basics|widgets/editor|topics/events|getting_started)\.rst	SubmitEvent	respond when the user hits return in a text field of a terminal app
+para	tui/integrations/symfony_console\.rst	Pass a stylesheet to the Tui constructor	theme a terminal UI launched from a command
+para	security/access_control\.rst	port: 8080	only allow a URL through a particular network port
+para	reference/constraints/Twig\.rst	skipDeprecations	fail validation when template code uses outdated features
+para	create_framework/.*\.rst	front.php	single entry script dispatching paths in a hand-rolled framework
+para	tui/(widgets/basics|style/.*)\.rst	setStyle	override stylesheet rules for one widget
+para	(reference/forms/types/.*|form/form_customization)\.rst	label_attr	add a class to the label tag of a field
+para	mercure\.rst	UX Turbo	single page app feel without writing javascript using server pushed updates
+para	frontend/encore/installation\.rst	specific to Symfony	does the encore documentation apply if I am not using the framework
+ident	logging\.rst	rotating_file	rotating_file
+ident	cache\.rst	expiresAfter	expiresAfter
+ident	reference/forms/types/.*\.rst	help_attr	help_attr
+ident	cache/adapters/php_array_cache_adapter\.rst	PhpArrayAdapter	PhpArrayAdapter
+ident	console/value_resolver\.rst	MapDateTime	MapDateTime
+ident	reference/configuration/kernel\.rst	kernel.runtime_mode.worker	kernel.runtime_mode.worker
+ident	reference/dic_tags\.rst	container.hot_path	container.hot_path
+ident	cache/adapters/redis_adapter\.rst	DefaultMarshaller	DefaultMarshaller
+ident	(security/form_login|reference/configuration/security)\.rst	failure_path	failure_path
+ident	form/unit_testing\.rst	PreloadedExtension	PreloadedExtension
+ident	reference/constraints/EnableAutoMapping\.rst	EnableAutoMapping	EnableAutoMapping
+ident	tui/topics/keybindings\.rst	getDefaultKeybindings	getDefaultKeybindings
+ident	tui/topics/tick_loop\.rst	onTick	onTick
+ident	(logging/monolog_exclude_http_codes|logging/monolog_email)\.rst	excluded_http_codes	excluded_http_codes
+ident	form/bootstrap4\.rst	switch-custom	switch-custom
+ident	tui/(widgets/input|widgets/basics|widgets/editor|topics/events|getting_started)\.rst	SubmitEvent	SubmitEvent
+ident	reference/constraints/Twig\.rst	skipDeprecations	skipDeprecations
+ident	components/var_dumper\.rst	VAR_DUMPER_FORMAT	VAR_DUMPER_FORMAT
+ident	components/yaml\.rst	Yaml::parse	Yaml::parse
+ident	frontend/encore/reactjs\.rst	enableReactPreset	enableReactPreset

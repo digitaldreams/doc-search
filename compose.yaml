@@ -1,0 +1,14 @@
+# Postgres is not defined here: the app uses an existing pgvector server, see DATABASE_URL in .env.local.
+# This only runs embeddinggemma-2 on this machine for when the Ollama host on the LAN is unreachable:
+#   docker compose --profile laptop up -d && docker compose exec ollama ollama pull embeddinggemma-2:270m-q8_0-text
+services:
+  ollama:
+    profiles: [laptop]
+    image: ollama/ollama:latest
+    ports:
+      - "127.0.0.1:11435:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+volumes:
+  ollama_data:

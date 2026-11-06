@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Symfony docs search</title>
+<style>
+:root { --fog:#e8eef3; --paper:#f7fafc; --ink:#0f1e33; --cobalt:#1f3fd6; --slate:#566373; --amber:#ffc233; --line:#c9d3dc; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--fog); color:var(--ink); font:16px/1.5 "Avenir Next", Avenir, "Segoe UI", Helvetica, Arial, sans-serif; }
+main { max-width:1180px; margin:0 auto; padding:32px 24px 72px; }
+h1 { font-size:34px; line-height:1.15; font-weight:600; margin:0 0 6px; letter-spacing:-.01em; }
+h2 { font-size:24px; font-weight:600; margin:0 0 14px; }
+h3 { font-size:17px; font-weight:600; margin:0 0 8px; }
+p { margin:0 0 12px; max-width:72ch; }
+.lede { color:var(--slate); margin-bottom:22px; }
+form { display:flex; gap:8px; }
+input[name=q] { flex:1; min-width:0; font:inherit; font-size:18px; padding:12px 14px; color:var(--ink); background:var(--paper); border:2px solid var(--ink); border-radius:4px; }
+button { font:inherit; cursor:pointer; border-radius:4px; }
+button.go { background:var(--cobalt); color:#fff; border:2px solid var(--cobalt); padding:0 22px; font-weight:600; }
+:focus-visible { outline:3px solid var(--amber); outline-offset:2px; }
+.examples { display:flex; flex-wrap:wrap; gap:6px 8px; margin:12px 0 26px; padding:0; list-style:none; }
+.examples button { background:none; border:1px solid var(--line); color:var(--ink); padding:3px 10px; font-size:14px; text-align:left; }
+.examples button:hover { border-color:var(--cobalt); color:var(--cobalt); }
+#notice { background:var(--paper); border-left:4px solid var(--amber); padding:10px 14px; margin-bottom:16px; }
+.columns { display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; }
+.column { background:var(--paper); border-top:4px solid var(--line); padding:16px; min-width:0; }
+.column.meaning { border-top-color:var(--cobalt); }
+.how { color:var(--slate); font-size:14px; margin:0 0 10px; min-height:21px; }
+.strip { display:grid; grid-template-columns:repeat(10,1fr); gap:3px; margin:6px 0 6px; }
+.strip span { height:26px; display:grid; place-items:center; font-size:12px; color:var(--slate); background:var(--fog); }
+.strip span.lit { background:var(--amber); color:var(--ink); font-weight:700; }
+.verdict { font-weight:600; font-size:18px; margin:0 0 12px; }
+ol.hits { list-style:none; margin:0; padding:0; }
+ol.hits li { border-top:1px solid var(--line); padding:8px 8px 8px 0; display:grid; grid-template-columns:30px 1fr; }
+ol.hits li.answer { background:#fff3cf; box-shadow:inset 4px 0 0 var(--amber); }
+.pos { color:var(--slate); text-align:right; padding-right:10px; font-variant-numeric:tabular-nums; }
+.hit { min-width:0; }
+summary { cursor:pointer; font-weight:600; overflow-wrap:anywhere; }
+.file { display:block; color:var(--slate); font-size:13px; overflow-wrap:anywhere; margin-top:4px; }
+.preview, pre { font:12.5px/1.45 Menlo, Consolas, monospace; white-space:pre-wrap; overflow-wrap:anywhere; margin:6px 0 0; }
+.preview { color:var(--slate); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; white-space:normal; }
+details[open] + .preview { display:none; }
+#rerank { background:none; border:1px solid var(--cobalt); color:var(--cobalt); padding:4px 10px; font-size:14px; margin-top:12px; }
+button:disabled { opacity:.55; cursor:wait; }
+section { margin-top:56px; }
+.lanes { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+.lane { background:var(--paper); padding:16px 18px; }
+.lane ol { margin:0; padding:0; list-style:none; counter-reset:step; }
+.lane li { counter-increment:step; position:relative; padding:0 0 14px 40px; }
+.lane li:last-child { padding-bottom:0; }
+.lane li::before { content:counter(step); position:absolute; left:0; top:0; width:26px; height:26px; display:grid; place-items:center; background:var(--ink); color:#fff; font-size:13px; font-weight:600; border-radius:50%; }
+.lane li:not(:last-child)::after { content:""; position:absolute; left:12px; top:26px; bottom:0; width:2px; background:var(--line); }
+.lane b { display:block; font-weight:600; }
+.lane small { font-size:14px; color:var(--slate); display:block; }
+.table { overflow-x:auto; background:var(--paper); }
+table { border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums; }
+caption { text-align:left; padding:12px 14px 4px; font-weight:600; }
+th,td { padding:7px 14px; text-align:right; border-top:1px solid var(--line); white-space:nowrap; }
+th:first-child,td:first-child { text-align:left; white-space:normal; min-width:200px; }
+thead th { font-weight:600; border-top:0; color:var(--slate); font-size:14px; }
+tr.ours td { font-weight:600; background:#eef1ff; }
+.limits { margin-top:18px; }
+.limits li { margin-bottom:8px; max-width:78ch; }
+@media (max-width:760px) { main { padding:20px 16px 56px; } h1 { font-size:27px; } .columns,.lanes { grid-template-columns:1fr; } form { flex-direction:column; } button.go { padding:10px; } }
+</style>
+</head>
+<body>
+<main>
+<h1>Ask the Symfony docs in your own words</h1>
+<p class="lede">{{ chunks|number_format }} passages searched by a small embedding model on a local machine. No cloud API, and the database is Postgres.</p>
+
+<form id="ask">
+  <label hidden for="q">Your question</label>
+  <input id="q" name="q" maxlength="{{ maxQuery }}" placeholder="Describe what you want to do, or paste a class name" autofocus autocomplete="off">
+  <button class="go">Search</button>
+</form>
+<ul class="examples">
+  {% for example in examples %}<li><button type="button" data-q="{{ example }}">{{ example }}</button></li>{% endfor %}
+</ul>
+
+<div id="notice" hidden role="status"></div>
+<div class="columns" id="results" hidden>
+  <div class="column" id="words"><h2>Matching words</h2><p class="how"></p><div class="strip" hidden></div><p class="verdict" hidden></p><ol class="hits"></ol></div>
+  <div class="column meaning" id="meaning"><h2>Matching meaning</h2><p class="how"></p><div class="strip" hidden></div><p class="verdict" hidden></p><ol class="hits"></ol>
+    <button type="button" id="rerank">Reorder with a local LLM (about a minute)</button></div>
+</div>
+
+{% set r = results.fresh|default(null) %}
+{% set h = results.holdout|default(null) %}
+<section>
+  <h2>How it works</h2>
+  <div class="lanes">
+    <div class="lane"><h3>Indexing, once</h3><ol>
+      <li><b>Read the docs</b><small>Parse the .rst files and inline every include, so a constraint's shared options stay on its page.</small></li>
+      <li><b>Split at headings</b><small>Pack whole blocks up to 512 estimated tokens. Code stays with the sentence that introduces it.</small></li>
+      <li><b>Embed one config format</b><small>Input is <code>title: breadcrumb | text: …</code>. YAML goes to the model, every format stays for the reader.</small></li>
+      <li><b>Store in Postgres</b><small>Vector and text through Symfony AI's store, words in a BM25 term table.</small></li>
+    </ol></div>
+    <div class="lane"><h3>Search, every question</h3><ol>
+      <li><b>Embed the question</b><small>Input is <code>task: search result | query: …</code>, the model's own format.</small></li>
+      <li><b>Scan every vector</b><small>Exact cosine in pgvector, top 50, about 30 ms. At this size an HNSW index would save only about 17 ms.</small></li>
+      <li><b>Add keywords if it looks like code</b><small>Identifiers or one or two words join BM25 by reciprocal rank fusion. Plain questions stay vector only.</small></li>
+      <li><b>Optionally reorder</b><small>A local LLM reorders the top 20. Only numbers are read from its reply, so at worst a hostile passage changes the order.</small></li>
+    </ol></div>
+  </div>
+</section>
+
+{% macro row(label, data, class, ours) %}
+  {% if data %}<tr{% if ours %} class="ours"{% endif %}><td>{{ label }}</td>{% for k in ['r@1','r@3','r@5','r@10','r@20','r@50'] %}<td>{{ (data[class][k] * 100)|number_format }}%</td>{% endfor %}</tr>{% endif %}
+{% endmacro %}
+{% macro table(title, set, class) %}
+  <table><caption>{{ title }}</caption><thead><tr><th>Method</th><th>Top 1</th><th>Top 3</th><th>Top 5</th><th>Top 10</th><th>Top 20</th><th>Top 50</th></tr></thead><tbody>
+    {{ _self.row('Keywords only (BM25)', set.keyword|default(null), class, false) }}
+    {{ _self.row('Symfony AI hybrid query', set['store-hybrid']|default(null), class, false) }}
+    {{ _self.row('This app', set.ours|default(null), class, true) }}
+    {{ _self.row('This app, reordered by LLM', set.rerank|default(null), class, false) }}
+  </tbody></table>
+{% endmacro %}
+{% if r and h %}
+<section>
+  <h2>Measured in this app</h2>
+  <p>How often the correct passage appears in the top results. Correct means from an accepted page and literally containing the answer.</p>
+  <div class="table">
+    {{ _self.table('Reworded questions, fresh set (' ~ r.ours.para.n ~ ' questions, pages fixed before searching)', r, 'para') }}
+    {{ _self.table('Reworded questions, held-out set (' ~ h.ours.para.n ~ ' questions)', h, 'para') }}
+    {{ _self.table('Exact identifiers, fresh set (' ~ r.ours.ident.n ~ ' questions)', r, 'ident') }}
+  </div>
+  <ul class="limits">
+    <li>I wrote these questions myself and have looked at the sets more than once, so they are good evidence, not a benchmark. With 57 questions, one question moves a score by about 2 points.</li>
+    <li>Reworded questions do not always find their answer. Identifier lookups do, in the top 3 on this set.</li>
+    <li>Reproduce it: <code>php bin/console app:docs:eval</code></li>
+  </ul>
+</section>
+{% endif %}
+</main>
+
+<script>
+const $ = (s, root = document) => root.querySelector(s);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+const form = $('#ask'), input = $('#q'), notice = $('#notice'), rerankBtn = $('#rerank');
+let current = '';
+
+function say(text) { notice.textContent = text || ''; notice.hidden = !text; }
+
+function ms(t) {
+  const names = { embed: 'embedding the question', vector: 'vector scan', keyword: 'keyword search', rerank: 'LLM reorder' };
+  return Object.entries(t).map(([k, v]) => `${names[k]} ${v < 1000 ? Math.round(v) + ' ms' : (v / 1000).toFixed(1) + ' s'}`).join(', ');
+}
+
+function fill(col, data, answer, known, how) {
+  $('.how', col).textContent = how;
+  const strip = $('.strip', col), verdict = $('.verdict', col), list = $('.hits', col);
+  strip.hidden = verdict.hidden = !known;
+  strip.replaceChildren();
+  if (known) {
+    for (let i = 1; i <= 10; i++) strip.append(el('span', i === answer ? 'lit' : '', String(i)));
+    verdict.textContent = answer ? `Answer at position ${answer}` : 'Answer not in the top 10';
+  }
+  list.replaceChildren();
+  if (!data.hits.length) list.append(el('li', '', 'No passage shares a word with this question.'));
+  data.hits.forEach((hit, i) => {
+    const li = el('li', known && answer === i + 1 ? 'answer' : '');
+    li.append(el('span', 'pos', String(i + 1)));
+    const body = el('div', 'hit'), det = el('details'), sum = el('summary', '', hit.path || hit.file);
+    det.append(sum, el('pre', '', hit.source));
+    body.append(det, el('div', 'preview', hit.source), el('span', 'file', hit.file));
+    li.append(body);
+    list.append(li);
+  });
+}
+
+async function run(q, rerank) {
+  current = q;
+  say(rerank ? 'A local LLM is reading the top 20 passages on CPU. This takes about a minute.' : '');
+  rerankBtn.disabled = true;
+  try {
+    const res = await fetch('/search?' + new URLSearchParams(rerank ? { q, rerank: 1 } : { q }));
+    const data = await res.json();
+    if (!res.ok) { say(data.error); return; }
+    if (q !== current) return;
+    $('#results').hidden = false;
+    const m = data.meaning;
+    const mode = { vector: 'Vectors only', hybrid: 'Vectors plus keywords, because this looks like code or is very short', keyword: 'Keywords only, because the model host is unreachable', none: '' }[m.mode];
+    fill($('#words'), data.words, data.test.words, data.test.known, 'BM25 over the same passages: ' + ms(data.words.ms));
+    fill($('#meaning'), m, data.test.meaning, data.test.known, `${mode}${m.rerank === 'done' ? ', then reordered by a local LLM' : ''}: ${ms(m.ms)}`);
+    rerankBtn.hidden = m.mode === 'keyword';
+    say(m.embedding === 'saved' ? 'Model host unreachable. This question uses its vector saved from an earlier run.'
+      : m.embedding === 'none' ? 'Model host unreachable and this question has no saved vector, so vector search could not run.'
+      : m.rerank === 'failed' ? 'The reorder model did not answer on this host, so these are in their original order.' : '');
+  } catch (e) {
+    say('The search request failed. Check that the app is still running, then search again.');
+  } finally {
+    rerankBtn.disabled = false;
+  }
+}
+
+form.addEventListener('submit', e => { e.preventDefault(); if (input.value.trim()) run(input.value.trim(), false); });
+document.querySelectorAll('[data-q]').forEach(b => b.addEventListener('click', () => { input.value = b.dataset.q; run(b.dataset.q, false); }));
+rerankBtn.addEventListener('click', () => run(current, true));
+const linked = new URLSearchParams(location.search).get('q');
+if (linked) { input.value = linked; run(linked, false); }
+</script>
+</body>
+</html>
