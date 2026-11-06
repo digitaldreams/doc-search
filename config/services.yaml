@@ -30,14 +30,14 @@ parameters:
                 - PhpArrayAdapter
                 - move an old standard edition project to the new recipe tool
         # Another repo, e.g. after `git clone --depth 1 https://github.com/laravel/docs data/laravel-docs`:
-        # laravel/docs:
-        #     label: Laravel
-        #     path: '%kernel.project_dir%/data/laravel-docs'
-        #     extension: md
-        #     url: 'https://laravel.com/docs/13.x/{page}'
-        #     exclude: [readme.md, license.md, documentation.md] # documentation.md is the site's menu
-        #     examples:
-        #         - run a closure on a different queue connection
+        laravel/docs:
+            label: Laravel
+            path: '%kernel.project_dir%/data/laravel-docs'
+            extension: md
+            url: 'https://laravel.com/docs/13.x/{page}'
+            exclude: [readme.md, license.md, documentation.md] # documentation.md is the site's menu
+            examples:
+                - run a closure on a different queue connection
 
 services:
     # default configuration for services in *this* file

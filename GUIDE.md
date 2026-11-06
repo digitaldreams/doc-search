@@ -212,11 +212,12 @@ A question that was asked before keeps its vector, so vector search still works 
 
 **Another docs repo: Laravel.** Each repo is searched on its own; the page shows a dropdown once there are two.
 
-1. `git clone --depth 1 https://github.com/laravel/docs data/laravel-docs`
-2. Uncomment the `laravel/docs` entry under `app.docs_repos` in `config/services.yaml`.
-3. `EMBED_TIMEOUT=120 php bin/console app:docs:ingest laravel/docs`. No vectors ship for it, so its 4,109 chunks are embedded once; on a CPU host the longest ones take more than the default 15 s per batch. Ingest never touches another repo's chunks.
+Its entry under `app.docs_repos` in `config/services.yaml` is enabled; comment it out to search Symfony only.
 
-A repo's shipped vectors go in `data/seed_vectors/<key>.bin`, its question sets in `data/queries/<key>/`, and `app:docs:eval <key>` writes `data/eval_results/<key>.json`. Markdown links use the page's own `<a name>` anchors; Laravel has no question sets yet, so its recall is not measured.
+1. `git clone --depth 1 https://github.com/laravel/docs data/laravel-docs`
+2. `php bin/console app:docs:ingest laravel/docs`. Its 4,109 chunks come from the shipped `data/seed_vectors/laravel/docs.bin` (taken 2026-11-06); only pages changed since are embedded. Embedding many long chunks on a CPU host takes more than the default 15 s per batch: prefix `EMBED_TIMEOUT=120`. Ingest never touches another repo's chunks.
+
+A repo's shipped vectors go in `data/seed_vectors/<key>.bin` (`app:docs:ingest <key> --export-seeds` writes them from the index; default model only), its question sets in `data/queries/<key>/`, and `app:docs:eval <key>` writes `data/eval_results/<key>.json`. Markdown links use the page's own `<a name>` anchors; Laravel has no question sets yet, so its recall is not measured.
 
 `tests/Docs/ProviderPayloadTest.php` pins the exact requests: the Ollama ones are byte-for-byte what built the shipped vectors, and the Gemini ones prove the commented configuration is valid. Not measured: Gemini's recall on the question sets (`app:docs:eval` once you have a key), and whether the `title: … | text: …` prefixes, written for embeddinggemma, help or hurt it. Keep in mind that every visitor's question, and the docs at ingest, then go to Google, and that a paid key behind a public search box spends money per question. Only one platform is configured at a time; mixing (Gemini embeddings, Ollama reranker) needs `#[Target]` on the reranker's platform argument.
 

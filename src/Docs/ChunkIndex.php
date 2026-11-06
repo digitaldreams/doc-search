@@ -120,6 +120,33 @@ final class ChunkIndex
     }
 
     /**
+     * Write this repo's vectors as its shipped vectors (readSeeds' format, ordered by id), so a new install
+     * seeds them instead of embedding the repo again. Only vectors of the default model: those are the only
+     * ones sync reads.
+     *
+     * @return int vectors written
+     */
+    public function exportSeeds(string $repo, string $file): int
+    {
+        $built = $this->db->fetchOne('SELECT model FROM index_meta');
+        if (Embedder::DEFAULT_MODEL !== $built) {
+            throw new \RuntimeException(\sprintf('The index was built with %s; shipped vectors must come from %s. Nothing exported.', $built ?: 'no model', Embedder::DEFAULT_MODEL));
+        }
+        $bytes = '';
+        foreach ($this->db->fetchAllKeyValue("SELECT id, embedding FROM chunks WHERE metadata->>'repo' = ? ORDER BY id", [$repo]) as $id => $vector) {
+            $bytes .= hex2bin($id).pack('g*', ...json_decode($vector, true, 2, \JSON_THROW_ON_ERROR));
+        }
+        if ('' === $bytes) {
+            throw new \RuntimeException("No chunks of $repo are indexed. Nothing exported.");
+        }
+        is_dir(\dirname($file)) || mkdir(\dirname($file), 0o755, true);
+        file_put_contents("$file.tmp", $bytes);
+        rename("$file.tmp", $file); // a failed export never leaves a truncated seed file behind
+
+        return \strlen($bytes) / self::SEED_RECORD;
+    }
+
+    /**
      * @param list<string> $ids only these are decoded; the file holds every chunk
      *
      * @return array<string, list<float>>

@@ -168,4 +168,40 @@ final class ChunkIndexTest extends SearchTestCase
         $this->expectException(\RuntimeException::class);
         $this->index()->sync(self::REPO, [self::chunk('4444444444444444', 'a')], $seed);
     }
+
+    public function testExportedVectorsRebuildTheRepoWithoutCallingTheModel(): void
+    {
+        $chunks = [self::chunk('1111111111111111', 'laravel queues'), self::chunk('2222222222222222', 'laravel routes')];
+        $this->index()->sync('laravel/docs', $chunks, $this->seedFile([]));
+        $this->index()->sync(self::REPO, [self::chunk('3333333333333333', 'symfony words')], $this->seedFile([]));
+        $before = $this->db->fetchAllKeyValue('SELECT id, embedding FROM chunks ORDER BY id');
+        $file = tempnam(sys_get_temp_dir(), 'export');
+
+        self::assertSame(2, $this->index()->exportSeeds('laravel/docs', $file));
+        self::assertSame(2 * (8 + Embedder::DIMENSIONS * 4), filesize($file)); // the other repo is not in it
+
+        $this->db->executeStatement("DELETE FROM chunks WHERE metadata->>'repo' = 'laravel/docs'");
+        FakeEmbeddings::$inputs = [];
+        $stats = $this->index()->sync('laravel/docs', $chunks, $file);
+
+        self::assertSame(['seeded' => 2, 'embedded' => 0, 'removed' => 0, 'kept' => 0], $stats);
+        self::assertSame([], FakeEmbeddings::$inputs);
+        self::assertSame($before, $this->db->fetchAllKeyValue('SELECT id, embedding FROM chunks ORDER BY id'));
+    }
+
+    public function testVectorsOfAnotherModelAreNeverExportedAsShippedOnes(): void
+    {
+        // shipped vectors are only read under the default model, so other ones would be read as if they were its
+        $index = new ChunkIndex(new Embedder(new Vectorizer(FakeEmbeddings::platform(), 'other-embedder'), $this->db, 'other-embedder'), $this->store, $this->db);
+        $index->sync(self::REPO, [self::chunk('5555555555555555', 'a')], $this->seedFile([]));
+        $file = sys_get_temp_dir().'/export'.bin2hex(random_bytes(6));
+
+        try {
+            $index->exportSeeds(self::REPO, $file);
+            self::fail('exported');
+        } catch (\RuntimeException $e) {
+            self::assertStringContainsString('other-embedder', $e->getMessage());
+        }
+        self::assertFileDoesNotExist($file);
+    }
 }
