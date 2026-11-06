@@ -14,7 +14,7 @@ final class SearchPageTest extends WebTestCase
         $db = $c->get(Connection::class);
         $db->executeStatement('TRUNCATE chunks, chunk_terms, query_vectors');
         $text = 'Redirect users after a failed login attempt with failure_path';
-        $c->get(ChunkIndex::class)->store([
+        $c->get(ChunkIndex::class)->store(SearchTestCase::REPO, [
             ['id' => 'a', 'file' => 'security.rst', 'path' => ['Security', 'Login'], 'text' => $text, 'source' => $text],
             ['id' => 'b', 'file' => 'cache.rst', 'path' => ['Cache'], 'text' => 'Cache pools', 'source' => 'Cache pools'],
         ], [FakeEmbeddings::vector($text), FakeEmbeddings::vector('cache pools')]);
@@ -51,7 +51,7 @@ final class SearchPageTest extends WebTestCase
         $client = self::createClient();
         $c = self::getContainer();
         $c->get(Connection::class)->executeStatement('TRUNCATE chunks, chunk_terms, query_vectors');
-        $c->get(ChunkIndex::class)->store([
+        $c->get(ChunkIndex::class)->store(SearchTestCase::REPO, [
             ['id' => 'a', 'file' => 'mailer.rst', 'path' => ['Sending Emails with Mailer', 'Using a 3rd Party Transport'], 'text' => 'mailer transport', 'source' => 's'],
             ['id' => 'b', 'file' => 'reference/constraints/Time.rst', 'path' => ['Time'], 'text' => 'mailer time', 'source' => 's'],
         ], [FakeEmbeddings::vector('mailer transport'), FakeEmbeddings::vector('mailer time')]);
@@ -89,12 +89,58 @@ final class SearchPageTest extends WebTestCase
         $client = self::createClient();
         $this->seed($client);
         // a real question from data/queries; its answer is not in this tiny index
-        $question = \App\Docs\TestSet::load(self::getContainer()->getParameter('kernel.project_dir').'/data/queries/fresh.tsv')[0]['query'];
+        $question = \App\Docs\TestSet::load(self::getContainer()->getParameter('kernel.project_dir').'/data/queries/symfony/symfony-docs/fresh.tsv')[0]['query'];
         $client->request('GET', '/search', ['q' => $question]);
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertTrue($data['test']['known']);
         self::assertNull($data['test']['meaning']);
+
+        // a Symfony question asked of another repo has no answer key there
+        $client->request('GET', '/search', ['q' => $question, 'repo' => 'laravel/docs']);
+        self::assertFalse(json_decode($client->getResponse()->getContent(), true)['test']['known']);
+    }
+
+    public function testSearchRunsOnTheChosenRepoAndLinksToItsSite(): void
+    {
+        $client = self::createClient();
+        $c = self::getContainer();
+        $c->get(Connection::class)->executeStatement('TRUNCATE chunks, chunk_terms, query_vectors');
+        $c->get(ChunkIndex::class)->store(SearchTestCase::REPO, [
+            ['id' => 's', 'file' => 'routing.rst', 'path' => ['Routing'], 'text' => 'route parameters', 'source' => 's'],
+        ], [FakeEmbeddings::vector('route parameters')]);
+        $c->get(ChunkIndex::class)->store('laravel/docs', [
+            ['id' => 'l', 'file' => 'routing.md', 'path' => ['Routing', 'Optional Parameters'], 'text' => 'route parameters', 'source' => 's', 'anchor' => 'parameters-optional-parameters'],
+        ], [FakeEmbeddings::vector('route parameters')]);
+
+        $client->request('GET', '/search', ['q' => 'route parameters', 'repo' => 'laravel/docs']);
+        $hits = json_decode($client->getResponse()->getContent(), true)['meaning']['hits'];
+        self::assertSame(['https://laravel.com/docs/13.x/routing#parameters-optional-parameters'], array_column($hits, 'url'));
+
+        $client->request('GET', '/search', ['q' => 'route parameters']); // no repo: DOCS_REPO
+        self::assertSame(['routing.rst'], array_column(json_decode($client->getResponse()->getContent(), true)['meaning']['hits'], 'file'));
+    }
+
+    public function testAnUnknownRepoIsRefusedBeforeAnyModelCall(): void
+    {
+        $client = self::createClient();
+        FakeEmbeddings::$inputs = [];
+        foreach (['/search' => 400, '/' => 404] as $url => $status) {
+            $client->request('GET', $url, ['q' => 'anything at all', 'repo' => "x' OR 1=1 --"]);
+            self::assertResponseStatusCodeSame($status);
+        }
+        self::assertSame([], FakeEmbeddings::$inputs);
+    }
+
+    public function testThePageOffersEveryRepoWithTheChosenOneSelected(): void
+    {
+        $client = self::createClient();
+        $client->request('GET', '/');
+        self::assertSelectorTextSame('select[name=repo] option[selected]', 'Symfony');
+
+        $client->request('GET', '/', ['repo' => 'laravel/docs']);
+        self::assertSelectorTextSame('select[name=repo] option[selected]', 'Laravel');
+        self::assertSelectorTextContains('h1', 'Laravel');
     }
 
     public function testAnOrdinaryQuestionHasNoAnswerKey(): void

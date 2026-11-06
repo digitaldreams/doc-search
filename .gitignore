@@ -13,3 +13,6 @@
 /phpunit.xml
 /.phpunit.cache/
 ###< phpunit/phpunit ###
+
+# other docs repos cloned for app.docs_repos
+/data/laravel-docs/

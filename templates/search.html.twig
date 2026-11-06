@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Symfony docs search</title>
+<title>{{ repos[repo] }} docs search</title>
 <style>
 :root { --fog:#e8eef3; --paper:#f7fafc; --ink:#0f1e33; --cobalt:#1f3fd6; --slate:#566373; --amber:#ffc233; --line:#c9d3dc; }
 * { box-sizing:border-box; }
@@ -15,6 +15,7 @@ h3 { font-size:17px; font-weight:600; margin:0 0 8px; }
 p { margin:0 0 12px; max-width:72ch; }
 .lede { color:var(--slate); margin-bottom:22px; }
 form { display:flex; gap:8px; }
+select[name=repo] { font:inherit; font-size:18px; padding:0 10px; color:var(--ink); background:var(--paper); border:2px solid var(--ink); border-radius:4px; }
 input[name=q] { flex:1; min-width:0; font:inherit; font-size:18px; padding:12px 14px; color:var(--ink); background:var(--paper); border:2px solid var(--ink); border-radius:4px; }
 button { font:inherit; cursor:pointer; border-radius:4px; }
 button.go { background:var(--cobalt); color:#fff; border:2px solid var(--cobalt); padding:0 22px; font-weight:600; }
@@ -66,10 +67,14 @@ tr.ours td { font-weight:600; background:#eef1ff; }
 </head>
 <body>
 <main>
-<h1>Ask the Symfony docs in your own words</h1>
+<h1>Ask the {{ repos[repo] }} docs in your own words</h1>
 <p class="lede">{{ chunks|number_format }} passages searched by a small embedding model on a local machine. No cloud API, and the database is Postgres.</p>
 
-<form id="ask">
+<form id="ask" data-repo="{{ repo }}">
+  {% if repos|length > 1 %}
+  <label hidden for="repo">Docs to search</label>
+  <select id="repo" name="repo">{% for key, label in repos %}<option value="{{ key }}"{% if key == repo %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+  {% endif %}
   <label hidden for="q">Your question</label>
   <input id="q" name="q" maxlength="{{ maxQuery }}" placeholder="Describe what you want to do, or paste a class name" autofocus autocomplete="off">
   <button class="go">Search</button>
@@ -88,7 +93,7 @@ tr.ours td { font-weight:600; background:#eef1ff; }
   <h2>How it works</h2>
   <div class="lanes">
     <div class="lane"><h3>Indexing, once</h3><ol>
-      <li><b>Read the docs</b><small>Parse the .rst files and inline every include, so a constraint's shared options stay on its page.</small></li>
+      <li><b>Read the docs</b><small>Parse the .rst or .md files and inline every RST include, so a constraint's shared options stay on its page.</small></li>
       <li><b>Split at headings</b><small>Pack whole blocks up to 512 estimated tokens. Code stays with the sentence that introduces it.</small></li>
       <li><b>Embed one config format</b><small>Input is <code>title: breadcrumb | text: …</code>. YAML goes to the model, every format stays for the reader.</small></li>
       <li><b>Store in Postgres</b><small>Vector and text through Symfony AI's store, words in a BM25 term table.</small></li>
@@ -134,7 +139,7 @@ tr.ours td { font-weight:600; background:#eef1ff; }
 <script>
 const $ = (s, root = document) => root.querySelector(s);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
-const form = $('#ask'), input = $('#q'), notice = $('#notice'), rerankBtn = $('#rerank');
+const form = $('#ask'), input = $('#q'), notice = $('#notice'), rerankBtn = $('#rerank'), repo = form.dataset.repo;
 let current = '';
 
 function say(text) { notice.textContent = text || ''; notice.hidden = !text; }
@@ -173,7 +178,7 @@ async function run(q, rerank) {
   say(rerank ? 'A local LLM is reading the top 20 passages on CPU. This takes about a minute.' : '');
   rerankBtn.disabled = true;
   try {
-    const res = await fetch('/search?' + new URLSearchParams(rerank ? { q, rerank: 1 } : { q }));
+    const res = await fetch('/search?' + new URLSearchParams(rerank ? { q, repo, rerank: 1 } : { q, repo }));
     const data = await res.json();
     if (!res.ok) { say(data.error); return; }
     if (q !== current) return;
@@ -196,6 +201,8 @@ async function run(q, rerank) {
 form.addEventListener('submit', e => { e.preventDefault(); if (input.value.trim()) run(input.value.trim(), false); });
 document.querySelectorAll('[data-q]').forEach(b => b.addEventListener('click', () => { input.value = b.dataset.q; run(b.dataset.q, false); }));
 rerankBtn.addEventListener('click', () => run(current, true));
+// another repo's page: its own examples, passage count and measurements
+$('#repo')?.addEventListener('change', e => { location.search = new URLSearchParams({ repo: e.target.value }); });
 const linked = new URLSearchParams(location.search).get('q');
 if (linked) { input.value = linked; run(linked, false); }
 </script>

@@ -74,7 +74,7 @@ final class TestSetTest extends TestCase
 
     public function testLoadsTheShippedQuestionSets(): void
     {
-        $fresh = TestSet::load(__DIR__.'/../../data/queries/fresh.tsv');
+        $fresh = TestSet::load(__DIR__.'/../../data/queries/symfony/symfony-docs/fresh.tsv');
 
         self::assertCount(77, $fresh);
         self::assertSame(['class', 'file', 'needle', 'query'], array_keys($fresh[0]));

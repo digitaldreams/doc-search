@@ -49,15 +49,18 @@ Cost and speed:
 ```
 INDEXING (once, then only what changed)
 
-  .rst + .rst.inc files
+  one docs repo: .rst + .rst.inc files, or .md files
         |
         v
-  Chunker                     headings -> sections -> whole blocks, up to 512 est. tokens
+  RstParser | MarkdownParser  headings -> sections -> rendered blocks
+        |
+        v
+  Chunker                     whole blocks, up to 512 est. tokens
         |                     text   = one config format, what gets embedded
         |                     source = every format, what the reader sees
         |                     id     = sha1(file, breadcrumb, text), so unchanged = same id
         v
-  ChunkIndex.sync             skip ids already stored, remove ids gone from the docs
+  ChunkIndex.sync             skip ids already stored, remove ids gone from this repo's docs
         |
         |-- shipped vector exists? ---------------------.
         |                                               |
@@ -78,7 +81,7 @@ SEARCH (every question)
   Embedder.query ---> Ollama: "task: search result | query: ..."
         |             host down? use the saved vector and say so; none saved? keywords only
         v
-  Retriever.vector            exact cosine scan, top 50
+  Retriever.vector            exact cosine scan of the chosen repo, top 50
         |
         v
   looks like code, or one or two words?
@@ -93,7 +96,8 @@ SEARCH (every question)
 
 | Piece | File | Job |
 |---|---|---|
-| Chunker | `src/Docs/Chunker.php` | RST to chunks, the embedding input formats, the routing rule |
+| Chunker | `src/Docs/Chunker.php`, `RstParser.php`, `MarkdownParser.php` | Docs to chunks, the embedding input formats, the routing rule |
+| Repos | `src/Docs/Repos.php`, `app.docs_repos` in `config/services.yaml` | The docs repos, keyed by GitHub name; `DOCS_REPO` is the default |
 | Index | `src/Docs/ChunkIndex.php` | Incremental sync, shipped vectors, BM25 terms |
 | Embedder | `src/Docs/Embedder.php` | Symfony AI Platform to Ollama, unit vectors, saved-vector fallback |
 | Retriever | `src/Docs/Retriever.php` | Vector search through the Symfony AI store, BM25 in SQL, fusion |
@@ -206,6 +210,14 @@ A question that was asked before keeps its vector, so vector search still works 
 
 3. `php bin/console doctrine:migrations:migrate -n && php bin/console app:docs:ingest`. The shipped vectors belong to the default model and are skipped, so every chunk is embedded once. A rate-limit stop loses nothing: each batch is committed, and running ingest again resumes. An index built with one model refuses another model's vectors.
 
+**Another docs repo: Laravel.** Each repo is searched on its own; the page shows a dropdown once there are two.
+
+1. `git clone --depth 1 https://github.com/laravel/docs data/laravel-docs`
+2. Uncomment the `laravel/docs` entry under `app.docs_repos` in `config/services.yaml`.
+3. `EMBED_TIMEOUT=120 php bin/console app:docs:ingest laravel/docs`. No vectors ship for it, so its 4,109 chunks are embedded once; on a CPU host the longest ones take more than the default 15 s per batch. Ingest never touches another repo's chunks.
+
+A repo's shipped vectors go in `data/seed_vectors/<key>.bin`, its question sets in `data/queries/<key>/`, and `app:docs:eval <key>` writes `data/eval_results/<key>.json`. Markdown links use the page's own `<a name>` anchors; Laravel has no question sets yet, so its recall is not measured.
+
 `tests/Docs/ProviderPayloadTest.php` pins the exact requests: the Ollama ones are byte-for-byte what built the shipped vectors, and the Gemini ones prove the commented configuration is valid. Not measured: Gemini's recall on the question sets (`app:docs:eval` once you have a key), and whether the `title: … | text: …` prefixes, written for embeddinggemma, help or hurt it. Keep in mind that every visitor's question, and the docs at ingest, then go to Google, and that a paid key behind a public search box spends money per question. Only one platform is configured at a time; mixing (Gemini embeddings, Ollama reranker) needs `#[Target]` on the reranker's platform argument.
 
 ## 4. How it was built, step by step
@@ -316,7 +328,7 @@ The research ran in Python and SQLite. Moving it was a chance to lose all of it 
 1. **The PHP chunker must produce the same chunks.** `ChunkerTest` compares all 6,370 chunk ids, their order, and a hash of each `source` against the Python output. This caught a real bug during the port: Python skipped XML when picking the embedded format and the first PHP version did not, which produced 6,371 chunks instead of 6,370.
 2. **The app must reproduce the measured recall.** It does, to three decimals, on the fresh and held-out sets: reworded vectors 0.877 and 0.830, keywords 0.544 and 0.553. Later runs moved one tuning question at rank 1 (0.452 to 0.435, stable over three repeats); the cause was not established, and the host's vectors are bit-identical on repeat.
 
-Identical ids also meant the vectors could ship with the app (`data/seed_vectors.bin`, 19.6 MB), so setup takes seconds rather than most of an hour.
+Identical ids also meant the vectors could ship with the app (`data/seed_vectors/symfony/symfony-docs.bin`, 19.6 MB), so setup takes seconds rather than most of an hour.
 
 ### Step 9. Decide what Symfony AI should do, based on measurement
 

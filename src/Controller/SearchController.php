@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Docs\Repos;
 use App\Docs\Retriever;
 use App\Docs\TestSet;
 use Doctrine\DBAL\Connection;
@@ -17,30 +18,26 @@ final class SearchController extends AbstractController
 {
     private const MAX_QUERY = 500;
     private const SHOWN = 10;
-    private const EXAMPLES = [
-        'send people somewhere else when they type a wrong password',
-        'stop validating a field after the first rule that fails',
-        'tell if code is running in a persistent process mode rather than per request',
-        'why does my post-login account check run on each API request',
-        'PhpArrayAdapter',
-        'move an old standard edition project to the new recipe tool',
-    ];
 
     public function __construct(
         private readonly Retriever $retriever,
+        private readonly Repos $repos,
         #[Autowire('%kernel.project_dir%')] private readonly string $root,
     ) {
     }
 
     #[Route('/', methods: ['GET'])]
-    public function page(Connection $db): Response
+    public function page(Request $request, Connection $db): Response
     {
-        $results = "$this->root/data/eval_results.json";
+        $repo = $this->repo($request) ?? throw $this->createNotFoundException('Unknown docs repo.');
+        $results = "$this->root/data/eval_results/$repo.json";
 
         return $this->render('search.html.twig', [
-            'examples' => self::EXAMPLES,
+            'repo' => $repo,
+            'repos' => $this->repos->labels(),
+            'examples' => $this->repos->get($repo)['examples'] ?? [],
             'maxQuery' => self::MAX_QUERY,
-            'chunks' => (int) $db->fetchOne('SELECT count(*) FROM chunks'),
+            'chunks' => (int) $db->fetchOne("SELECT count(*) FROM chunks WHERE metadata->>'repo' = ?", [$repo]),
             'results' => is_file($results) ? json_decode(file_get_contents($results), true, 32, \JSON_THROW_ON_ERROR) : [],
         ]);
     }
@@ -58,15 +55,20 @@ final class SearchController extends AbstractController
         if ('' === $query || mb_strlen($query) > self::MAX_QUERY) {
             return $this->json(['error' => \sprintf('Ask a question of 1 to %d characters.', self::MAX_QUERY)], 400);
         }
+        $repo = $this->repo($request);
+        if (null === $repo) {
+            return $this->json(['error' => 'Unknown docs repo. Pick one from the list.'], 400);
+        }
         if (!$searchLimiter->create($request->getClientIp())->consume()->isAccepted()) {
             return $this->json(['error' => 'Too many searches this minute. Wait a moment and ask again.'], 429);
         }
 
-        $meaning = $this->retriever->search($query, self::SHOWN, $request->query->getBoolean('rerank'));
-        $question = TestSet::find("$this->root/data/queries", $query);
+        $meaning = $this->retriever->search($query, $repo, self::SHOWN, $request->query->getBoolean('rerank'));
+        $question = TestSet::find("$this->root/data/queries/$repo", $query);
+        $url = $this->repos->get($repo)['url'];
 
         return $this->json([
-            'meaning' => ['hits' => array_map(self::view(...), $meaning['hits']), 'mode' => $meaning['mode'], 'embedding' => $meaning['embedding'], 'rerank' => $meaning['rerank'], 'ms' => $meaning['ms']],
+            'meaning' => ['hits' => array_map(static fn (array $hit) => self::view($hit, $url), $meaning['hits']), 'mode' => $meaning['mode'], 'embedding' => $meaning['embedding'], 'rerank' => $meaning['rerank'], 'ms' => $meaning['ms']],
             'test' => [
                 'known' => null !== $question,
                 'meaning' => $question ? TestSet::rank($question, $meaning['hits']) : null,
@@ -74,19 +76,31 @@ final class SearchController extends AbstractController
         ]);
     }
 
-    private static function view(array $hit): array
+    /** The `repo` query value if it names a configured repo, DOCS_REPO when absent, null when unknown. */
+    private function repo(Request $request): ?string
     {
-        return ['file' => $hit['file'], 'path' => implode(' > ', $hit['path']), 'source' => $hit['source'], 'url' => self::url($hit)];
+        $key = $request->query->getString('repo');
+        try {
+            return $this->repos->key('' === $key ? null : $key);
+        } catch (\InvalidArgumentException) {
+            return null;
+        }
+    }
+
+    private static function view(array $hit, string $url): array
+    {
+        return ['file' => $hit['file'], 'path' => implode(' > ', $hit['path']), 'source' => $hit['source'], 'url' => self::url($hit, $url)];
     }
 
     /**
-     * The hit's section on symfony.com, so a reader whose chunk holds only part of the answer can read on.
-     * ponytail: heading slug matched 310 of 312 live anchors checked; a missing anchor still opens the page.
+     * The hit's section on its docs site, so a reader whose chunk holds only part of the answer can read on.
+     * The anchor is the page's own (`<a name>` in Laravel's docs); without one, the heading slug symfony.com uses.
+     * ponytail: heading slug matched 310 of 312 live symfony.com anchors checked; a missing anchor still opens the page.
      */
-    private static function url(array $hit): string
+    private static function url(array $hit, string $pattern): string
     {
-        $url = 'https://symfony.com/doc/current/'.preg_replace('/\.rst$/', '.html', $hit['file']);
-        $section = \count($hit['path']) > 1 ? trim(preg_replace('/[^a-z0-9]+/', '-', strtolower(end($hit['path']))), '-') : '';
+        $url = str_replace('{page}', preg_replace('/\.[^.\/]+$/', '', $hit['file']), $pattern);
+        $section = $hit['anchor'] ?? (\count($hit['path']) > 1 ? trim(preg_replace('/[^a-z0-9]+/', '-', strtolower(end($hit['path']))), '-') : '');
 
         return '' !== $section ? "$url#$section" : $url;
     }

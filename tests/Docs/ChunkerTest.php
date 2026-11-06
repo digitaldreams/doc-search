@@ -51,7 +51,7 @@ final class ChunkerTest extends TestCase
             $expected[] = $line;
         }
         $actual = [];
-        foreach ((new Chunker())->chunkTree(self::DOCS) as $c) {
+        foreach ((new Chunker())->chunkTree(self::DOCS, 'rst', ['#(^|/)_#']) as $c) {
             $actual[] = implode("\t", [$c['id'], $c['file'], sha1($c['source'])]);
         }
 
@@ -60,6 +60,44 @@ final class ChunkerTest extends TestCase
         sort($actual);
         self::assertCount(6370, $actual);
         self::assertSame($expected, $actual);
+    }
+
+    public function testATreeIsReadForItsRepoExtensionMinusExcludedPaths(): void
+    {
+        $root = sys_get_temp_dir().'/tree'.bin2hex(random_bytes(6));
+        foreach (['a.md' => "# A\n\nmarkdown", 'readme.md' => "# Readme\n\nx", 'b.rst' => "B\n=\n\nrst", '_inc/c.md' => "# C\n\nx"] as $name => $body) {
+            @mkdir(\dirname("$root/$name"), 0o777, true);
+            file_put_contents("$root/$name", $body);
+        }
+        try {
+            $chunks = (new Chunker())->chunkTree($root, 'md', ['readme.md', '#(^|/)_#']);
+        } finally {
+            exec('rm -rf '.escapeshellarg($root));
+        }
+
+        self::assertSame(['a.md'], array_column($chunks, 'file'));
+    }
+
+    public function testNoFileOutsideTheRepoIsEverRead(): void
+    {
+        // a hostile docs repo must not publish the host's files (e.g. .env.local) through search
+        $outer = sys_get_temp_dir().'/escape'.bin2hex(random_bytes(6));
+        mkdir("$outer/repo/sub", 0o777, true);
+        file_put_contents("$outer/outside.txt", 'FAKE_SECRET=outside-root-value');
+        symlink("$outer/outside.txt", "$outer/repo/leak.md");
+        symlink("$outer/outside.txt", "$outer/repo/sub/inner.txt");
+        file_put_contents("$outer/repo/ok.md", "# Ok\n\nmarkdown kept");
+        file_put_contents("$outer/repo/page.rst", "Page\n====\n\nrst kept\n\n.. include:: ../outside.txt\n\n.. include:: /../outside.txt\n\n.. include:: sub/inner.txt\n");
+        try {
+            $chunks = [...(new Chunker())->chunkTree("$outer/repo", 'md'), ...(new Chunker())->chunkTree("$outer/repo", 'rst')];
+        } finally {
+            exec('rm -rf '.escapeshellarg($outer));
+        }
+
+        $all = implode("\n", array_column($chunks, 'source'));
+        self::assertStringNotContainsString('FAKE_SECRET', $all);
+        self::assertStringContainsString('markdown kept', $all);
+        self::assertStringContainsString('rst kept', $all);
     }
 
     public function testHeadingHierarchyComesFromFirstSeenAdornmentOrder(): void

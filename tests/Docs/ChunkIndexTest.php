@@ -32,7 +32,7 @@ final class ChunkIndexTest extends SearchTestCase
     {
         $seed = $this->seedFile(['aaaaaaaaaaaaaaaa' => self::axis(7)]);
 
-        $stats = $this->index()->sync([self::chunk('aaaaaaaaaaaaaaaa', 'seeded')], $seed);
+        $stats = $this->index()->sync(self::REPO, [self::chunk('aaaaaaaaaaaaaaaa', 'seeded')], $seed);
 
         self::assertSame(['seeded' => 1, 'embedded' => 0, 'removed' => 0, 'kept' => 0], $stats);
         self::assertSame([], FakeEmbeddings::$inputs);
@@ -44,7 +44,7 @@ final class ChunkIndexTest extends SearchTestCase
         $seed = $this->seedFile(['aaaaaaaaaaaaaaaa' => self::axis(7)]);
         $index = new ChunkIndex(new Embedder(new Vectorizer(FakeEmbeddings::platform(), 'other-embedder'), $this->db, 'other-embedder'), $this->store, $this->db);
 
-        $stats = $index->sync([self::chunk('aaaaaaaaaaaaaaaa', 'seeded')], $seed);
+        $stats = $index->sync(self::REPO, [self::chunk('aaaaaaaaaaaaaaaa', 'seeded')], $seed);
 
         self::assertSame(['seeded' => 0, 'embedded' => 1, 'removed' => 0, 'kept' => 0], $stats);
         self::assertSame('other-embedder', $this->db->fetchOne('SELECT model FROM index_meta'));
@@ -52,7 +52,7 @@ final class ChunkIndexTest extends SearchTestCase
 
     public function testAChunkWithNoShippedVectorIsEmbeddedInTheDocumentFormat(): void
     {
-        $stats = $this->index()->sync([self::chunk('bbbbbbbbbbbbbbbb', 'new words', ['Top', 'Sub'])], $this->seedFile([]));
+        $stats = $this->index()->sync(self::REPO, [self::chunk('bbbbbbbbbbbbbbbb', 'new words', ['Top', 'Sub'])], $this->seedFile([]));
 
         self::assertSame(1, $stats['embedded']);
         self::assertSame([['title: Top > Sub | text: new words']], FakeEmbeddings::$inputs);
@@ -61,10 +61,10 @@ final class ChunkIndexTest extends SearchTestCase
     public function testASecondSyncDoesNoWork(): void
     {
         $seed = $this->seedFile([]);
-        $this->index()->sync([self::chunk('cccccccccccccccc', 'x y')], $seed);
+        $this->index()->sync(self::REPO, [self::chunk('cccccccccccccccc', 'x y')], $seed);
         FakeEmbeddings::$inputs = [];
 
-        $stats = $this->index()->sync([self::chunk('cccccccccccccccc', 'x y')], $seed);
+        $stats = $this->index()->sync(self::REPO, [self::chunk('cccccccccccccccc', 'x y')], $seed);
 
         self::assertSame(['seeded' => 0, 'embedded' => 0, 'removed' => 0, 'kept' => 1], $stats);
         self::assertSame([], FakeEmbeddings::$inputs);
@@ -73,22 +73,44 @@ final class ChunkIndexTest extends SearchTestCase
     public function testChunksGoneFromTheDocsAreRemovedWithTheirTerms(): void
     {
         $seed = $this->seedFile([]);
-        $this->index()->sync([self::chunk('dddddddddddddddd', 'old words'), self::chunk('eeeeeeeeeeeeeeee', 'kept words')], $seed);
+        $this->index()->sync(self::REPO, [self::chunk('dddddddddddddddd', 'old words'), self::chunk('eeeeeeeeeeeeeeee', 'kept words')], $seed);
 
-        $stats = $this->index()->sync([self::chunk('eeeeeeeeeeeeeeee', 'kept words')], $seed);
+        $stats = $this->index()->sync(self::REPO, [self::chunk('eeeeeeeeeeeeeeee', 'kept words')], $seed);
 
         self::assertSame(1, $stats['removed']);
         self::assertSame(['eeeeeeeeeeeeeeee'], $this->ids());
         self::assertSame(0, (int) $this->db->fetchOne("SELECT count(*) FROM chunk_terms WHERE chunk_id = 'dddddddddddddddd'"));
     }
 
+    public function testSyncingOneRepoNeverRemovesAnothersChunks(): void
+    {
+        // ingest runs one repo at a time: what it finds missing is missing from that repo only
+        $seed = $this->seedFile([]);
+        $this->index()->sync(self::REPO, [self::chunk('aaaaaaaaaaaaaaaa', 'symfony words')], $seed);
+
+        $stats = $this->index()->sync('laravel/docs', [self::chunk('bbbbbbbbbbbbbbbb', 'laravel words')], $seed);
+        self::assertSame(['seeded' => 0, 'embedded' => 1, 'removed' => 0, 'kept' => 0], $stats);
+
+        $stats = $this->index()->sync('laravel/docs', [self::chunk('cccccccccccccccc', 'newer laravel words')], $seed);
+        self::assertSame(1, $stats['removed']);
+        self::assertSame(['aaaaaaaaaaaaaaaa', 'cccccccccccccccc'], $this->ids());
+    }
+
+    public function testEachChunkRemembersItsRepoAndAnchor(): void
+    {
+        $this->index()->store('laravel/docs', [self::chunk('a', 'routes') + ['anchor' => 'basic-routing'], self::chunk('b', 'no anchor')], [self::axis(1), self::axis(2)]);
+
+        $rows = $this->db->fetchAllKeyValue("SELECT id, metadata->>'repo' || ' #' || coalesce(metadata->>'anchor', '-') FROM chunks ORDER BY id");
+        self::assertSame(['a' => 'laravel/docs #basic-routing', 'b' => 'laravel/docs #-'], $rows);
+    }
+
     public function testAWrongDocsPathCannotWipeTheIndex(): void
     {
         $seed = $this->seedFile([]);
-        $this->index()->sync([self::chunk('ffffffffffffffff', 'precious')], $seed);
+        $this->index()->sync(self::REPO, [self::chunk('ffffffffffffffff', 'precious')], $seed);
 
         try {
-            $this->index()->sync([], $seed);
+            $this->index()->sync(self::REPO, [], $seed);
             self::fail('an empty chunk list must be refused');
         } catch (\RuntimeException) {
         }
@@ -99,13 +121,13 @@ final class ChunkIndexTest extends SearchTestCase
     public function testAnIndexBuiltWithAnotherModelIsNeverMixedWithThisOne(): void
     {
         $seed = $this->seedFile([]);
-        $this->index()->sync([self::chunk('1111111111111111', 'old')], $seed);
+        $this->index()->sync(self::REPO, [self::chunk('1111111111111111', 'old')], $seed);
         self::assertSame(Embedder::DEFAULT_MODEL, $this->db->fetchOne('SELECT model FROM index_meta'));
         $this->db->executeStatement('UPDATE index_meta SET model = ?', ['some-other-model']);
         FakeEmbeddings::$inputs = [];
 
         try {
-            $this->index()->sync([self::chunk('2222222222222222', 'new')], $seed);
+            $this->index()->sync(self::REPO, [self::chunk('2222222222222222', 'new')], $seed);
             self::fail('vectors from two models must not share one index');
         } catch (\RuntimeException $e) {
             self::assertStringContainsString('some-other-model', $e->getMessage());
@@ -121,7 +143,7 @@ final class ChunkIndexTest extends SearchTestCase
         $index = new ChunkIndex(new Embedder(new Vectorizer($platform, 'test-model'), $this->db), $this->store, $this->db);
 
         try {
-            $index->sync([self::chunk('1111111111111111', 'a'), self::chunk('2222222222222222', 'b')], $this->seedFile([]));
+            $index->sync(self::REPO, [self::chunk('1111111111111111', 'a'), self::chunk('2222222222222222', 'b')], $this->seedFile([]));
             self::fail('a short reply must be refused');
         } catch (\RuntimeException) {
         }
@@ -135,7 +157,7 @@ final class ChunkIndexTest extends SearchTestCase
         $index = new ChunkIndex(new Embedder(new Vectorizer($platform, 'test-model'), $this->db), $this->store, $this->db);
 
         $this->expectException(\RuntimeException::class);
-        $index->sync([self::chunk('3333333333333333', 'a')], $this->seedFile([]));
+        $index->sync(self::REPO, [self::chunk('3333333333333333', 'a')], $this->seedFile([]));
     }
 
     public function testATruncatedSeedFileIsRefused(): void
@@ -144,6 +166,6 @@ final class ChunkIndexTest extends SearchTestCase
         file_put_contents($seed, str_repeat("\0", 100));
 
         $this->expectException(\RuntimeException::class);
-        $this->index()->sync([self::chunk('4444444444444444', 'a')], $seed);
+        $this->index()->sync(self::REPO, [self::chunk('4444444444444444', 'a')], $seed);
     }
 }

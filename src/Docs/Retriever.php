@@ -11,14 +11,16 @@ use Symfony\Component\Lock\LockFactory;
 
 /**
  * The search itself: vectors for meaning, BM25 for exact identifiers, routed by the shape of the question.
+ * Every search runs inside one docs repo.
  *
- * @phpstan-type Hit array{id: string, file: string, path: list<string>, text: string, source: string}
+ * @phpstan-type Hit array{id: string, file: string, path: list<string>, text: string, source: string, anchor: ?string}
  */
 final class Retriever
 {
     /** Each ranking is this deep before fusing, whatever the caller shows. */
     private const POOL = 50;
     private const RRF_K = 60;
+    private const IN_REPO = "metadata->>'repo' = :repo";
 
     public function __construct(
         private readonly Embedder $embedder,
@@ -32,7 +34,7 @@ final class Retriever
     /**
      * @return array{hits: list<Hit>, mode: 'vector'|'hybrid'|'keyword'|'none', embedding: 'live'|'saved'|'none', rerank: 'off'|'done'|'failed'|'busy', ms: array<string, float>}
      */
-    public function search(string $query, int $k = 10, bool $rerank = false): array
+    public function search(string $query, string $repo, int $k = 10, bool $rerank = false): array
     {
         $ms = [];
         if ('' === trim($query)) {
@@ -41,8 +43,8 @@ final class Retriever
 
         $embedded = self::timed($ms, 'embed', fn () => $this->embedder->query($query));
         $useKeywords = Chunker::wantsKeywords($query) || null === $embedded['vector'];
-        $vector = null === $embedded['vector'] ? [] : self::timed($ms, 'vector', fn () => $this->vector($embedded['vector'], self::POOL));
-        $keyword = $useKeywords ? self::timed($ms, 'keyword', fn () => $this->keyword($query, self::POOL)) : [];
+        $vector = null === $embedded['vector'] ? [] : self::timed($ms, 'vector', fn () => $this->vector($embedded['vector'], self::POOL, $repo));
+        $keyword = $useKeywords ? self::timed($ms, 'keyword', fn () => $this->keyword($query, self::POOL, $repo)) : [];
 
         $hits = match (true) {
             null === $embedded['vector'] => $keyword,
@@ -80,10 +82,10 @@ final class Retriever
      *
      * @return list<Hit>
      */
-    public function vector(array $vector, int $limit): array
+    public function vector(array $vector, int $limit, string $repo): array
     {
         $hits = [];
-        foreach ($this->store->query(new VectorQuery(new Vector($vector)), ['limit' => $limit]) as $document) {
+        foreach ($this->store->query(new VectorQuery(new Vector($vector)), ['limit' => $limit] + self::inRepo($repo)) as $document) {
             $hits[] = self::hit($document);
         }
 
@@ -93,11 +95,12 @@ final class Retriever
     /**
      * BM25 in SQL (k1 = 1.2, b = 0.75), same formula as SQLite FTS5. Postgres' own ts_rank has no inverse document
      * frequency, so a rare identifier would count no more than "the", and the keyword baseline
-     * this demo compares against would be unfairly weak.
+     * this demo compares against would be unfairly weak. Rarity and average length are the repo's own: counted over
+     * every repo, one repo's common words would score as rare in another.
      *
      * @return list<Hit>
      */
-    public function keyword(string $query, int $limit): array
+    public function keyword(string $query, int $limit, string $repo): array
     {
         preg_match_all('/\w+/u', mb_strtolower($query), $m);
         $terms = array_values(array_filter($m[0], static fn (string $t) => mb_strlen($t) > 1));
@@ -106,16 +109,17 @@ final class Retriever
         }
 
         $rows = $this->db->fetchAllAssociative(<<<'SQL'
-            WITH stats AS (SELECT count(*)::float8 AS n, avg(tokens)::float8 AS avgdl FROM chunks),
+            WITH repo AS (SELECT id, tokens FROM chunks WHERE metadata->>'repo' = :repo),
+            stats AS (SELECT count(*)::float8 AS n, avg(tokens)::float8 AS avgdl FROM repo),
             q AS (SELECT term, count(*) AS times FROM jsonb_array_elements_text(CAST(:terms AS jsonb)) AS term GROUP BY term),
-            df AS (SELECT t.term, count(*)::float8 AS df FROM chunk_terms t JOIN q USING (term) GROUP BY t.term),
+            df AS (SELECT t.term, count(*)::float8 AS df FROM chunk_terms t JOIN q USING (term) JOIN repo c ON c.id = t.chunk_id GROUP BY t.term),
             ranked AS (
                 SELECT t.chunk_id, sum(
                     q.times
                     * GREATEST(ln((s.n - df.df + 0.5) / (df.df + 0.5)), 1e-6)
                     * (t.tf * 2.2) / (t.tf + 1.2 * (0.25 + 0.75 * c.tokens / s.avgdl))
                 ) AS score
-                FROM chunk_terms t JOIN q USING (term) JOIN df USING (term) JOIN chunks c ON c.id = t.chunk_id CROSS JOIN stats s
+                FROM chunk_terms t JOIN q USING (term) JOIN df USING (term) JOIN repo c ON c.id = t.chunk_id CROSS JOIN stats s
                 GROUP BY t.chunk_id
                 ORDER BY score DESC, t.chunk_id
                 LIMIT :limit
@@ -124,9 +128,16 @@ final class Retriever
             SQL, [
             'terms' => json_encode($terms, \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_UNICODE),
             'limit' => $limit,
+            'repo' => $repo,
         ]);
 
         return array_map(static fn (array $r) => self::fromMetadata($r['id'], json_decode($r['metadata'], true, 512, \JSON_THROW_ON_ERROR)), $rows);
+    }
+
+    /** @return array{where: string, params: array{repo: string}} Symfony AI store options, the repo bound, never inlined */
+    public static function inRepo(string $repo): array
+    {
+        return ['where' => self::IN_REPO, 'params' => ['repo' => $repo]];
     }
 
     /**
@@ -178,7 +189,7 @@ final class Retriever
 
     private static function fromMetadata(string $id, array $m): array
     {
-        return ['id' => $id, 'file' => $m['file'], 'path' => $m['path'], 'text' => $m['text'], 'source' => $m['source']];
+        return ['id' => $id, 'file' => $m['file'], 'path' => $m['path'], 'text' => $m['text'], 'source' => $m['source'], 'anchor' => $m['anchor'] ?? null];
     }
 
     /**

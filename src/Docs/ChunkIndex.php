@@ -37,11 +37,16 @@ final class ChunkIndex
     }
 
     /**
-     * @param list<array{id: string, file: string, path: list<string>, text: string, source: string}> $chunks
+     * Make the index hold exactly these chunks for this repo; other repos' chunks are never touched.
+     *
+     * ponytail: ids hash file + breadcrumb + text, not the repo, so the shipped vectors keep matching. Two repos with
+     * the same file, breadcrumb and text would share one row; hash the repo into the id if that ever happens.
+     *
+     * @param list<array{id: string, file: string, path: list<string>, text: string, source: string, anchor?: ?string}> $chunks
      *
      * @return array{seeded: int, embedded: int, removed: int, kept: int}
      */
-    public function sync(array $chunks, string $seedFile, ?callable $progress = null): array
+    public function sync(string $repo, array $chunks, string $seedFile, ?callable $progress = null): array
     {
         if (!$chunks) { // sync removes whatever is gone from the docs: a wrong path would remove everything
             throw new \RuntimeException('No chunks found, index left unchanged.');
@@ -55,7 +60,7 @@ final class ChunkIndex
         } elseif ($model !== $built) {
             throw new \RuntimeException(\sprintf('The index was built with %s, not %s. Empty the chunks, chunk_terms, query_vectors and index_meta tables to rebuild it, index left unchanged.', $built, $model));
         }
-        $have = array_flip($this->db->fetchFirstColumn('SELECT id FROM chunks'));
+        $have = array_flip($this->db->fetchFirstColumn("SELECT id FROM chunks WHERE metadata->>'repo' = ?", [$repo]));
         $wanted = array_column($chunks, null, 'id');
         $gone = array_keys(array_diff_key($have, $wanted));
         $todo = array_values(array_diff_key($wanted, $have));
@@ -68,14 +73,14 @@ final class ChunkIndex
 
         $seeded = array_values(array_filter($todo, static fn ($c) => isset($seeds[$c['id']])));
         foreach (array_chunk($seeded, 256) as $part) {
-            $this->store($part, array_map(static fn ($c) => $seeds[$c['id']], $part));
+            $this->store($repo, $part, array_map(static fn ($c) => $seeds[$c['id']], $part));
             $progress && $progress(\count($part));
         }
 
         $missing = array_values(array_filter($todo, static fn ($c) => !isset($seeds[$c['id']])));
         usort($missing, static fn ($a, $b) => mb_strlen($a['text']) <=> mb_strlen($b['text'])); // similar lengths: less padding per batch
         foreach (array_chunk($missing, self::BATCH) as $part) {
-            $this->store($part, $this->embedder->documents($part));
+            $this->store($repo, $part, $this->embedder->documents($part));
             $progress && $progress(\count($part));
         }
 
@@ -83,17 +88,18 @@ final class ChunkIndex
     }
 
     /**
-     * @param list<array{id: string, file: string, path: list<string>, text: string, source: string}> $chunks
-     * @param list<list<float>>                                                                       $vectors
+     * @param list<array{id: string, file: string, path: list<string>, text: string, source: string, anchor?: ?string}> $chunks
+     * @param list<list<float>>                                                                                         $vectors
      */
-    public function store(array $chunks, array $vectors): void
+    public function store(string $repo, array $chunks, array $vectors): void
     {
-        $this->db->transactional(function () use ($chunks, $vectors): void {
+        $this->db->transactional(function () use ($repo, $chunks, $vectors): void {
             $documents = $rows = $lengths = [];
             foreach ($chunks as $i => $c) {
                 $searchable = implode(' > ', $c['path'])."\n".$c['text'];
                 $documents[] = new VectorDocument($c['id'], new Vector($vectors[$i]), new Metadata([
-                    'file' => $c['file'], 'path' => $c['path'], 'text' => $c['text'], 'source' => $c['source'], Metadata::KEY_TEXT => $searchable,
+                    'repo' => $repo, 'file' => $c['file'], 'path' => $c['path'], 'text' => $c['text'], 'source' => $c['source'],
+                    'anchor' => $c['anchor'] ?? null, Metadata::KEY_TEXT => $searchable,
                 ]));
                 $terms = self::terms($searchable);
                 $lengths[] = ['id' => $c['id'], 'tokens' => \count($terms)];

@@ -15,6 +15,8 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 abstract class SearchTestCase extends KernelTestCase
 {
+    public const REPO = 'symfony/symfony-docs';
+
     protected Connection $db;
     protected StoreInterface $store;
     protected ChunkIndex $index;

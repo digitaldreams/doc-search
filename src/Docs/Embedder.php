@@ -11,7 +11,7 @@ use Symfony\AI\Store\Document\VectorizerInterface;
  */
 final class Embedder
 {
-    /** The model the shipped data/seed_vectors.bin was built with. */
+    /** The model the shipped data/seed_vectors/*.bin were built with. */
     public const DEFAULT_MODEL = 'embeddinggemma-2:270m-q8_0-text';
     /** Fixed by the vector(768) column: another model must return this many dimensions. */
     public const DIMENSIONS = 768;

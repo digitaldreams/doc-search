@@ -3,6 +3,7 @@
 namespace App\Command;
 
 use App\Docs\Embedder;
+use App\Docs\Repos;
 use App\Docs\Retriever;
 use App\Docs\TestSet;
 use Doctrine\DBAL\Connection;
@@ -11,12 +12,13 @@ use Symfony\AI\Store\Document\VectorDocumentInterface;
 use Symfony\AI\Store\Query\HybridQuery;
 use Symfony\AI\Store\Query\TextQuery;
 use Symfony\AI\Store\StoreInterface;
+use Symfony\Component\Console\Attribute\Argument;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Attribute\Option;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
-#[AsCommand('app:docs:eval', 'Measure recall on the question sets and save it to data/eval_results.json')]
+#[AsCommand('app:docs:eval', 'Measure recall on a repo\'s question sets (data/queries/<repo>/) and save it to data/eval_results/<repo>.json')]
 final class EvalCommand
 {
     private const SETS = ['fresh', 'holdout', 'tuning'];
@@ -27,6 +29,7 @@ final class EvalCommand
         private readonly Embedder $embedder,
         private readonly StoreInterface $store,
         private readonly Connection $db,
+        private readonly Repos $repos,
         #[Autowire('%kernel.project_dir%')] private readonly string $root,
     ) {
     }
@@ -35,21 +38,27 @@ final class EvalCommand
         SymfonyStyle $io,
         #[Option('Comma-separated: ours, vector, keyword, store-hybrid, store-text, rerank')] ?string $modes = null,
         #[Option('Comma-separated: fresh, holdout, tuning')] ?string $sets = null,
+        #[Argument('A key of app.docs_repos; DOCS_REPO when left out')] ?string $repo = null,
     ): int {
-        $path = $this->root.'/data/eval_results.json';
+        $repo = $this->repos->key($repo);
+        $sets = $sets ? explode(',', $sets) : self::SETS;
+        foreach ($sets as $set) {
+            is_file("$this->root/data/queries/$repo/$set.tsv") || throw new \RuntimeException("No question set data/queries/$repo/$set.tsv, nothing measured.");
+        }
+        $path = "$this->root/data/eval_results/$repo.json";
         $results = is_file($path) ? json_decode(file_get_contents($path), true, 32, \JSON_THROW_ON_ERROR) : [];
         $pages = [];
-        foreach ($this->db->iterateNumeric("SELECT metadata->>'file', metadata->>'path', metadata->>'source' FROM chunks") as [$file, $crumbs, $source]) {
+        foreach ($this->db->iterateNumeric("SELECT metadata->>'file', metadata->>'path', metadata->>'source' FROM chunks WHERE metadata->>'repo' = ?", [$repo]) as [$file, $crumbs, $source]) {
             $pages[$file] = ($pages[$file] ?? '').implode(' ', json_decode($crumbs, true))."\n".$source."\n";
         }
 
-        foreach ($sets ? explode(',', $sets) : self::SETS as $set) {
-            $questions = TestSet::load("$this->root/data/queries/$set.tsv");
+        foreach ($sets as $set) {
+            $questions = TestSet::load("$this->root/data/queries/$repo/$set.tsv");
             foreach ($modes ? explode(',', $modes) : self::MODES as $mode) {
                 $ranks = $pageRanks = $took = [];
                 foreach ($questions as $q) {
                     $start = hrtime(true);
-                    $hits = $this->run($mode, $q['query']);
+                    $hits = $this->run($mode, $q['query'], $repo);
                     $took[] = (hrtime(true) - $start) / 1e6;
                     $ranks[] = TestSet::rank($q, $hits);
                     $pageRanks[] = TestSet::pageRank($q, $hits, $pages);
@@ -65,6 +74,7 @@ final class EvalCommand
                     $io->writeln(\sprintf('%-8s %-13s %-11s %s', $set, $mode, "$class-page", json_encode($row["$class-page"])));
                 }
                 $results[$set][$mode] = $row;
+                @mkdir(\dirname($path), 0o777, true);
                 file_put_contents($path, json_encode($results, \JSON_PRETTY_PRINT | \JSON_THROW_ON_ERROR)."\n");
             }
         }
@@ -72,23 +82,23 @@ final class EvalCommand
         return 0;
     }
 
-    private function run(string $mode, string $query): array
+    private function run(string $mode, string $query, string $repo): array
     {
         return match ($mode) {
-            'ours' => $this->retriever->search($query, 50)['hits'],
-            'rerank' => $this->reranked($query),
-            'keyword' => $this->retriever->keyword($query, 50),
-            'vector' => $this->retriever->vector($this->vector($query), 50),
-            'store-text' => $this->documents(new TextQuery($query)),
-            'store-hybrid' => $this->documents(new HybridQuery(new Vector($this->vector($query)), $query)),
+            'ours' => $this->retriever->search($query, $repo, 50)['hits'],
+            'rerank' => $this->reranked($query, $repo),
+            'keyword' => $this->retriever->keyword($query, 50, $repo),
+            'vector' => $this->retriever->vector($this->vector($query), 50, $repo),
+            'store-text' => $this->documents(new TextQuery($query), $repo),
+            'store-hybrid' => $this->documents(new HybridQuery(new Vector($this->vector($query)), $query), $repo),
             default => throw new \InvalidArgumentException("Unknown mode $mode"),
         };
     }
 
     /** A reorder that failed or found another one running returns vector order; scoring that as "rerank" would be a lie. */
-    private function reranked(string $query): array
+    private function reranked(string $query, string $repo): array
     {
-        $found = $this->retriever->search($query, 50, true);
+        $found = $this->retriever->search($query, $repo, 50, true);
 
         return 'done' === $found['rerank'] ? $found['hits'] : throw new \RuntimeException("Reorder was {$found['rerank']}, not done, for \"$query\"; nothing saved for this mode.");
     }
@@ -98,12 +108,19 @@ final class EvalCommand
         return $this->embedder->query($query)['vector'] ?? throw new \RuntimeException('The embedding host is unreachable and this question has no saved vector.');
     }
 
-    /** Symfony AI's own text and hybrid queries, measured to justify not using them. */
-    private function documents(object $query): array
+    /**
+     * Symfony AI's own text and hybrid queries, measured to justify not using them.
+     * ponytail: the Postgres store applies `where` to vector queries only, so these take a deep pool and keep the repo's
+     * hits; exact unless other repos fill 450 of the top 500.
+     */
+    private function documents(object $query, string $repo): array
     {
         $hits = [];
         /** @var VectorDocumentInterface $d */
-        foreach ($this->store->query($query, ['limit' => 50]) as $d) {
+        foreach ($this->store->query($query, ['limit' => 500]) as $d) {
+            if ($repo !== $d->getMetadata()['repo'] || 50 === \count($hits)) {
+                continue;
+            }
             $hits[] = ['file' => $d->getMetadata()['file'], 'path' => $d->getMetadata()['path'], 'source' => $d->getMetadata()['source']];
         }
 

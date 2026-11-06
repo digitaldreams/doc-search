@@ -9,6 +9,7 @@
         "ext-iconv": "*",
         "doctrine/doctrine-bundle": "*",
         "doctrine/doctrine-migrations-bundle": "*",
+        "league/commonmark": "^2.10",
         "symfony/ai-bundle": "^0.15",
         "symfony/ai-gemini-platform": "^0.15",
         "symfony/ai-ollama-platform": "^0.15",
