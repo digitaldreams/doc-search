@@ -23,9 +23,8 @@ button.go { background:var(--cobalt); color:#fff; border:2px solid var(--cobalt)
 .examples button { background:none; border:1px solid var(--line); color:var(--ink); padding:3px 10px; font-size:14px; text-align:left; }
 .examples button:hover { border-color:var(--cobalt); color:var(--cobalt); }
 #notice { background:var(--paper); border-left:4px solid var(--amber); padding:10px 14px; margin-bottom:16px; }
-.columns { display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; }
 .column { background:var(--paper); border-top:4px solid var(--line); padding:16px; min-width:0; }
-.column.meaning { border-top-color:var(--cobalt); }
+.column { border-top-color:var(--cobalt); }
 .how { color:var(--slate); font-size:14px; margin:0 0 10px; min-height:21px; }
 .strip { display:grid; grid-template-columns:repeat(10,1fr); gap:3px; margin:6px 0 6px; }
 .strip span { height:26px; display:grid; place-items:center; font-size:12px; color:var(--slate); background:var(--fog); }
@@ -62,7 +61,7 @@ thead th { font-weight:600; border-top:0; color:var(--slate); font-size:14px; }
 tr.ours td { font-weight:600; background:#eef1ff; }
 .limits { margin-top:18px; }
 .limits li { margin-bottom:8px; max-width:78ch; }
-@media (max-width:760px) { main { padding:20px 16px 56px; } h1 { font-size:27px; } .columns,.lanes { grid-template-columns:1fr; } form { flex-direction:column; } button.go { padding:10px; } }
+@media (max-width:760px) { main { padding:20px 16px 56px; } h1 { font-size:27px; } .lanes { grid-template-columns:1fr; } form { flex-direction:column; } button.go { padding:10px; } }
 </style>
 </head>
 <body>
@@ -80,11 +79,8 @@ tr.ours td { font-weight:600; background:#eef1ff; }
 </ul>
 
 <div id="notice" hidden role="status"></div>
-<div class="columns" id="results" hidden>
-  <div class="column" id="words"><h2>Matching words</h2><p class="how"></p><div class="strip" hidden></div><p class="verdict" hidden></p><ol class="hits"></ol></div>
-  <div class="column meaning" id="meaning"><h2>Matching meaning</h2><p class="how"></p><div class="strip" hidden></div><p class="verdict" hidden></p><ol class="hits"></ol>
-    <button type="button" id="rerank">Reorder with a local LLM (about a minute)</button></div>
-</div>
+<div class="column" id="results" hidden><p class="how"></p><div class="strip" hidden></div><p class="verdict" hidden></p><ol class="hits"></ol>
+  <button type="button" id="rerank">Reorder with a local LLM (about a minute)</button></div>
 
 {% set r = results.fresh|default(null) %}
 {% set h = results.holdout|default(null) %}
@@ -158,7 +154,7 @@ function fill(col, data, answer, known, how) {
     verdict.textContent = answer ? `Answer at position ${answer}` : 'Answer not in the top 10';
   }
   list.replaceChildren();
-  if (!data.hits.length) list.append(el('li', '', 'No passage shares a word with this question.'));
+  if (!data.hits.length) list.append(el('li', '', 'No passage found for this question.'));
   data.hits.forEach((hit, i) => {
     const li = el('li', known && answer === i + 1 ? 'answer' : '');
     li.append(el('span', 'pos', String(i + 1)));
@@ -184,8 +180,7 @@ async function run(q, rerank) {
     $('#results').hidden = false;
     const m = data.meaning;
     const mode = { vector: 'Vectors only', hybrid: 'Vectors plus keywords, because this looks like code or is very short', keyword: 'Keywords only, because the model host is unreachable', none: '' }[m.mode];
-    fill($('#words'), data.words, data.test.words, data.test.known, 'BM25 over the same passages: ' + ms(data.words.ms));
-    fill($('#meaning'), m, data.test.meaning, data.test.known, `${mode}${m.rerank === 'done' ? ', then reordered by a local LLM' : ''}: ${ms(m.ms)}`);
+    fill($('#results'), m, data.test.meaning, data.test.known, `${mode}${m.rerank === 'done' ? ', then reordered by a local LLM' : ''}: ${ms(m.ms)}`);
     rerankBtn.hidden = m.mode === 'keyword';
     say(m.embedding === 'saved' ? 'Model host unreachable. This question uses its vector saved from an earlier run.'
       : m.embedding === 'none' ? 'Model host unreachable and this question has no saved vector, so vector search could not run.'

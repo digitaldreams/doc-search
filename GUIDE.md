@@ -189,6 +189,25 @@ The model takes 2.2 s to load after a restart, and 13.7 s the very first time. O
 
 A question that was asked before keeps its vector, so vector search still works for it with no model running. The page says when that happens. A new question with no model falls back to keywords, and the page says that too.
 
+**Another provider: Google Gemini.** Ollama is the default. Gemini has a free embedding tier and is a configuration change, not a code change:
+
+1. In `config/packages/ai.yaml`, comment out the `ollama` platform, uncomment `gemini`, and set the vectorizer to `platform: 'ai.platform.gemini'` and `model: '%app.embedding_model%?dimensions=768'` (the `vector(768)` column needs 768; Gemini's default is 3072).
+2. In `.env.local`:
+
+   ```bash
+   GEMINI_API_KEY=...
+   EMBEDDING_MODEL=gemini-embedding-001
+   RERANK_MODEL=gemini-2.5-flash
+   RERANK_OPTIONS='{"maxOutputTokens":60,"thinkingConfig":{"thinkingBudget":0}}'
+   DATABASE_URL=...docs_search_gemini...   # a separate database keeps the Ollama index intact
+   ```
+
+> **Warning: rebuild before serving.** Search does not check which model built the index. Change `EMBEDDING_MODEL` on a database built with another model and the page keeps answering, labelled "live", with rankings from two unrelated vector spaces (both are 768 dimensions, so nothing rejects them), and the saved question vectors are overwritten with the new model's. Use a separate database, or empty `chunks`, `chunk_terms`, `query_vectors` and `index_meta`, and run ingest before the first search.
+
+3. `php bin/console doctrine:migrations:migrate -n && php bin/console app:docs:ingest`. The shipped vectors belong to the default model and are skipped, so every chunk is embedded once. A rate-limit stop loses nothing: each batch is committed, and running ingest again resumes. An index built with one model refuses another model's vectors.
+
+`tests/Docs/ProviderPayloadTest.php` pins the exact requests: the Ollama ones are byte-for-byte what built the shipped vectors, and the Gemini ones prove the commented configuration is valid. Not measured: Gemini's recall on the question sets (`app:docs:eval` once you have a key), and whether the `title: … | text: …` prefixes, written for embeddinggemma, help or hurt it. Keep in mind that every visitor's question, and the docs at ingest, then go to Google, and that a paid key behind a public search box spends money per question. Only one platform is configured at a time; mixing (Gemini embeddings, Ollama reranker) needs `#[Target]` on the reranker's platform argument.
+
 ## 4. How it was built, step by step
 
 ### Step 1. Define "found" before building anything
@@ -301,7 +320,7 @@ Identical ids also meant the vectors could ship with the app (`data/seed_vectors
 
 ### Step 9. Decide what Symfony AI should do, based on measurement
 
-**Platform: all model calls.** `embeddinggemma-2` and the reranker go through `PlatformInterface`, which also makes them easy to fake in tests. Models are passed as `new Ollama(...)` objects, because a name makes the catalog `POST /api/show` before each call.
+**Platform: all model calls, configured in `ai.yaml`.** The embedder takes the bundle's `VectorizerInterface` (`ai.vectorizer.docs`), the reranker takes `PlatformInterface`, and neither knows which provider is behind them. Model names come from `.env` (`EMBEDDING_MODEL`, `RERANK_MODEL`), provider-specific call options from `RERANK_OPTIONS`. The JSON schema the reranker asks for goes through `response_format`, which every bridge translates (Ollama `format`, Gemini `responseJsonSchema`), and the bundle's structured-output subscriber hands the reply back decoded. The cost: with a name instead of a model object, Ollama's catalog sends a `POST /api/show` before each call, a few milliseconds on the LAN.
 
 **Store: vectors, yes.** `VectorQuery` with cosine distance does exactly what is needed, and writes go through it too.
 
@@ -354,7 +373,7 @@ An exact scan of ten times the rows (63,700) took 232 ms, about as long as embed
 - **Embedder:** model-card format, unit length, saved-vector fallback when the host is down.
 - **Reranker:** only integers are read from the reply, so an injected instruction changes nothing but order.
 - **Web:** 400 for empty, overlong or non-string input before any model call; 403 when another site makes the browser call `/search`; each hit links to its section on symfony.com.
-- **Failure paths:** a host that accepts a connection and never answers is given up on (15 s in the app, 1 s in the test); a failed reorder keeps the original order and says so; only one reorder runs at a time (`symfony/lock`), a second one keeps the original order and says so instead of taking a web worker for a minute; an index built with another model refuses new vectors instead of mixing two vector spaces.
+- **Failure paths:** a model host that is off is given up on within 1 s, one that connects and then stalls after 15 s on an embedding (`app.ai_http_client` scopes the timeouts: the rerank keeps 300 s, because on CPU it is silent for about a minute); a visitor gets 10 searches a minute (`SEARCH_LIMIT`, `symfony/rate-limiter`, per IP), so a script cannot turn the search box into a model bill; a failed reorder keeps the original order and says so; only one reorder runs at a time (`symfony/lock`), a second one keeps the original order and says so instead of taking a web worker for a minute; an index built with another model refuses new vectors instead of mixing two vector spaces.
 
 The LLM's quality is measured by `app:docs:eval`, not asserted in tests. The tests cover everything deterministic around it.
 
@@ -391,7 +410,7 @@ The LLM's quality is measured by `app:docs:eval`, not asserted in tests. The tes
 | How do you know it isn't overfit? | Three sets, one drawn at random with accepted pages fixed before searching. And an earlier rule did overfit, which is how I learned to check. |
 | What happens when the docs change? | Chunk ids hash their content, so one edit re-embeds one chunk. |
 | What about prompt injection? | The docs sit in the reranker's prompt, so only integers are read from its reply. The worst outcome is a different order of passages already found. Output goes to the page as text, never as HTML. |
-| What if the model server dies? | Keyword search keeps working, and questions asked before still have vectors. A server that hangs instead of refusing is cut off after 15 s. The page says which you are getting. |
+| What if the model server dies? | Keyword search keeps working, and questions asked before still have vectors. A server that is off is given up on within a second, one that stalls after connecting within 15 s. The page says which you are getting. |
 | Would it scale? | The corpus size is the limit to test. 60,000 chunks is where I'd add HNSW. Past that, the embedding host's concurrency matters first. |
 | What would you do next? | Real query logs, and an answer step with its own evaluation. |
 

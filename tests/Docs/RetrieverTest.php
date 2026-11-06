@@ -126,7 +126,7 @@ final class RetrieverTest extends SearchTestCase
     {
         $this->index()->store([self::chunk('first', 'a'), self::chunk('second', 'b')], [self::axis(1), self::axis(1, 2)]);
         // e.g. the laptop host, which has the embedding model but not the reorder model
-        $reranker = new \App\Docs\Reranker(\Symfony\AI\Platform\Test\MockPlatformFactory::createPlatform(static fn () => throw new \RuntimeException('model "gemma4:latest" not found')));
+        $reranker = new \App\Docs\Reranker(\Symfony\AI\Platform\Test\MockPlatformFactory::createPlatform(static fn () => throw new \RuntimeException('model "gemma4:latest" not found')), 'gemma4:latest');
         $retriever = new \App\Docs\Retriever($this->embedder(self::axis(1)), $this->store, $this->db, $reranker);
 
         $found = $retriever->search('a plain question with many words', 10, true);
@@ -144,8 +144,8 @@ final class RetrieverTest extends SearchTestCase
         $reranker = new \App\Docs\Reranker(\Symfony\AI\Platform\Test\MockPlatformFactory::createPlatform(static function () use (&$calls) {
             ++$calls;
 
-            return '{"best":[2,1]}';
-        }));
+            return new \Symfony\AI\Platform\Result\ObjectResult(['best' => [2, 1]]);
+        }), 'gemma4:latest');
         $locks = new \Symfony\Component\Lock\LockFactory(new \Symfony\Component\Lock\Store\InMemoryStore());
         $retriever = new \App\Docs\Retriever($this->embedder(self::axis(1)), $this->store, $this->db, $reranker, $locks);
 

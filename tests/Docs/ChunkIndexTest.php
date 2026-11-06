@@ -7,6 +7,7 @@ use App\Docs\Embedder;
 use Symfony\AI\Platform\Result\VectorResult;
 use Symfony\AI\Platform\Test\MockPlatformFactory;
 use Symfony\AI\Platform\Vector\Vector;
+use Symfony\AI\Store\Document\Vectorizer;
 
 final class ChunkIndexTest extends SearchTestCase
 {
@@ -41,7 +42,7 @@ final class ChunkIndexTest extends SearchTestCase
     public function testShippedVectorsAreIgnoredWhenAnotherEmbeddingModelIsConfigured(): void
     {
         $seed = $this->seedFile(['aaaaaaaaaaaaaaaa' => self::axis(7)]);
-        $index = new ChunkIndex(new Embedder(FakeEmbeddings::platform(), $this->db, '', model: 'other-embedder'), $this->store, $this->db);
+        $index = new ChunkIndex(new Embedder(new Vectorizer(FakeEmbeddings::platform(), 'other-embedder'), $this->db, 'other-embedder'), $this->store, $this->db);
 
         $stats = $index->sync([self::chunk('aaaaaaaaaaaaaaaa', 'seeded')], $seed);
 
@@ -117,7 +118,7 @@ final class ChunkIndexTest extends SearchTestCase
     public function testAHostReturningTooFewVectorsStoresNothing(): void
     {
         $platform = MockPlatformFactory::createPlatform(static fn () => new VectorResult([new Vector(self::axis(1))]));
-        $index = new ChunkIndex(new Embedder($platform, $this->db, ''), $this->store, $this->db);
+        $index = new ChunkIndex(new Embedder(new Vectorizer($platform, 'test-model'), $this->db), $this->store, $this->db);
 
         try {
             $index->sync([self::chunk('1111111111111111', 'a'), self::chunk('2222222222222222', 'b')], $this->seedFile([]));
@@ -131,7 +132,7 @@ final class ChunkIndexTest extends SearchTestCase
     public function testAVectorOfTheWrongSizeIsRefused(): void
     {
         $platform = MockPlatformFactory::createPlatform(static fn () => new VectorResult([new Vector([1.0, 0.0])]));
-        $index = new ChunkIndex(new Embedder($platform, $this->db, ''), $this->store, $this->db);
+        $index = new ChunkIndex(new Embedder(new Vectorizer($platform, 'test-model'), $this->db), $this->store, $this->db);
 
         $this->expectException(\RuntimeException::class);
         $index->sync([self::chunk('3333333333333333', 'a')], $this->seedFile([]));

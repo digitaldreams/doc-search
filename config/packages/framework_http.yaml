@@ -1,5 +1,5 @@
 framework:
     http_client:
         default_options:
-            # Idle timeout. A long rerank on a CPU host takes minutes; an unreachable host is caught sooner by Embedder.
+            # Idle timeout. A long rerank on a CPU host takes minutes; a host that is off is caught in 1 s (app.ai_http_client).
             timeout: 300

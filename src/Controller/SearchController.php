@@ -10,6 +10,7 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
 final class SearchController extends AbstractController
@@ -45,7 +46,7 @@ final class SearchController extends AbstractController
     }
 
     #[Route('/search', methods: ['GET'])]
-    public function search(Request $request): JsonResponse
+    public function search(Request $request, RateLimiterFactoryInterface $searchLimiter): JsonResponse
     {
         // Any page the visitor has open could otherwise point an <img> here and run model work on this machine.
         // ponytail: Fetch Metadata only; browsers too old to send it are not stopped, a token would be the upgrade.
@@ -57,19 +58,17 @@ final class SearchController extends AbstractController
         if ('' === $query || mb_strlen($query) > self::MAX_QUERY) {
             return $this->json(['error' => \sprintf('Ask a question of 1 to %d characters.', self::MAX_QUERY)], 400);
         }
+        if (!$searchLimiter->create($request->getClientIp())->consume()->isAccepted()) {
+            return $this->json(['error' => 'Too many searches this minute. Wait a moment and ask again.'], 429);
+        }
 
-        $start = hrtime(true);
-        $words = $this->retriever->keyword($query, self::SHOWN);
-        $wordsMs = round((hrtime(true) - $start) / 1e6, 1);
         $meaning = $this->retriever->search($query, self::SHOWN, $request->query->getBoolean('rerank'));
         $question = TestSet::find("$this->root/data/queries", $query);
 
         return $this->json([
-            'words' => ['hits' => array_map(self::view(...), $words), 'ms' => ['keyword' => $wordsMs]],
             'meaning' => ['hits' => array_map(self::view(...), $meaning['hits']), 'mode' => $meaning['mode'], 'embedding' => $meaning['embedding'], 'rerank' => $meaning['rerank'], 'ms' => $meaning['ms']],
             'test' => [
                 'known' => null !== $question,
-                'words' => $question ? TestSet::rank($question, $words) : null,
                 'meaning' => $question ? TestSet::rank($question, $meaning['hits']) : null,
             ],
         ]);

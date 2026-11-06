@@ -1,0 +1,18 @@
+framework:
+    rate_limiter:
+        # per visitor IP: each search embeds the question and may call a paid model
+        search:
+            policy: sliding_window
+            limit: '%app.search_limit%'
+            interval: '1 minute'
+
+when@test:
+    framework:
+        rate_limiter:
+            search:
+                # one container's lifetime only, so tests never count each other's searches
+                storage_service: 'limiter.in_memory'
+
+    services:
+        limiter.in_memory:
+            class: Symfony\Component\RateLimiter\Storage\InMemoryStorage

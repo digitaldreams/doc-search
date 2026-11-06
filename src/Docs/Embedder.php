@@ -3,15 +3,11 @@
 namespace App\Docs;
 
 use Doctrine\DBAL\Connection;
-use Symfony\AI\Platform\Bridge\Ollama\Factory as OllamaFactory;
-use Symfony\AI\Platform\Bridge\Ollama\Ollama;
-use Symfony\AI\Platform\Capability;
-use Symfony\AI\Platform\PlatformInterface;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
-use Symfony\Contracts\HttpClient\HttpClientInterface;
+use Symfony\AI\Platform\Vector\Vector;
+use Symfony\AI\Store\Document\VectorizerInterface;
 
 /**
- * Talks to the embedding model. Passing a Model skips the catalog's POST /api/show on every call.
+ * Turns docs and questions into unit vectors through whichever vectorizer ai.yaml configures.
  */
 final class Embedder
 {
@@ -20,18 +16,13 @@ final class Embedder
     /** Fixed by the vector(768) column: another model must return this many dimensions. */
     public const DIMENSIONS = 768;
 
-    /** Long enough for a cold model load (2-14 s measured), short enough that a hung host does not hang the page. */
-    public const QUERY_SECONDS = 15.0;
-
-    private ?PlatformInterface $queryPlatform = null;
-
+    /**
+     * @param string $model the vectorizer's model, recorded in index_meta so two models' vectors never mix
+     */
     public function __construct(
-        private readonly PlatformInterface $platform,
+        private readonly VectorizerInterface $vectorizer,
         private readonly Connection $db,
-        private readonly string $host,
-        private readonly ?HttpClientInterface $http = null,
-        private readonly float $querySeconds = self::QUERY_SECONDS,
-        #[Autowire('%env(EMBEDDING_MODEL)%')] private readonly string $model = self::DEFAULT_MODEL,
+        private readonly string $model = self::DEFAULT_MODEL,
     ) {
     }
 
@@ -47,12 +38,12 @@ final class Embedder
      */
     public function documents(array $chunks): array
     {
-        $vectors = $this->embed(array_map(Chunker::docInput(...), $chunks));
+        $vectors = $this->vectorizer->vectorize(array_map(Chunker::docInput(...), $chunks));
         if (\count($vectors) !== \count($chunks)) {
             throw new \RuntimeException(\sprintf('The model returned %d vectors for %d chunks.', \count($vectors), \count($chunks)));
         }
 
-        return $vectors;
+        return array_map(self::unit(...), $vectors);
     }
 
     /**
@@ -63,20 +54,16 @@ final class Embedder
      */
     public function query(string $query): array
     {
-        if ($this->reachable()) {
-            try {
-                $vector = $this->embed([Chunker::queryInput($query)], $this->queryPlatform())[0] ?? null;
-                if (null !== $vector) {
-                    $this->db->executeStatement(
-                        'INSERT INTO query_vectors (query, embedding) VALUES (?, ?) ON CONFLICT (query) DO UPDATE SET embedding = EXCLUDED.embedding',
-                        [$query, self::literal($vector)],
-                    );
+        try {
+            $vector = self::unit($this->vectorizer->vectorize(Chunker::queryInput($query)));
+            $this->db->executeStatement(
+                'INSERT INTO query_vectors (query, embedding) VALUES (?, ?) ON CONFLICT (query) DO UPDATE SET embedding = EXCLUDED.embedding',
+                [$query, self::literal($vector)],
+            );
 
-                    return ['vector' => $vector, 'source' => 'live'];
-                }
-            } catch (\Exception) {
-                // any failure here falls through to the saved vector: a dead model must not take keyword search down
-            }
+            return ['vector' => $vector, 'source' => 'live'];
+        } catch (\Exception) {
+            // any failure here falls through to the saved vector: a dead model must not take keyword search down
         }
 
         $saved = $this->db->fetchOne('SELECT embedding FROM query_vectors WHERE query = ?', [$query]);
@@ -91,59 +78,15 @@ final class Embedder
         return '['.implode(',', $vector).']';
     }
 
-    /**
-     * @param list<string> $texts
-     *
-     * @return list<list<float>>
-     */
-    private function embed(array $texts, ?PlatformInterface $platform = null): array
+    /** Cosine needs length 1: Ollama returns unit vectors, Gemini's shortened 768-dimension ones are not. */
+    private static function unit(Vector $vector): array
     {
-        $model = new Ollama($this->model, [Capability::EMBEDDINGS]);
-        $out = [];
-        foreach (($platform ?? $this->platform)->invoke($model, $texts)->asVectors() as $vector) {
-            $out[] = self::unit($vector->getData());
+        $data = $vector->getData();
+        $length = sqrt(array_sum(array_map(static fn (float $x) => $x * $x, $data)));
+        if (self::DIMENSIONS !== \count($data) || 0.0 === $length) {
+            throw new \RuntimeException(\sprintf('The model returned an unusable vector of %d dimensions.', \count($data)));
         }
 
-        return $out;
-    }
-
-    /** Cosine needs length 1; Ollama returns unit vectors today, and this keeps that from being an assumption. */
-    private static function unit(array $vector): array
-    {
-        $length = sqrt(array_sum(array_map(static fn (float $x) => $x * $x, $vector)));
-        if (self::DIMENSIONS !== \count($vector) || 0.0 === $length) {
-            throw new \RuntimeException(\sprintf('The model returned an unusable vector of %d dimensions.', \count($vector)));
-        }
-
-        return array_map(static fn (float $x) => $x / $length, $vector);
-    }
-
-    /**
-     * Indexing may wait minutes for a batch; a question may not. The reachability probe below only proves the port
-     * is open, so a host that accepts and then hangs is cut off here instead, and the saved vector or keywords answer.
-     */
-    private function queryPlatform(): PlatformInterface
-    {
-        if ('' === $this->host || null === $this->http) {
-            return $this->platform;
-        }
-
-        return $this->queryPlatform ??= OllamaFactory::createPlatform($this->host, httpClient: $this->http->withOptions(['max_duration' => $this->querySeconds]));
-    }
-
-    /** One second to find out the host is off, instead of the 300s a slow embedding is allowed. */
-    private function reachable(): bool
-    {
-        if ('' === $this->host) {
-            return true;
-        }
-        $url = parse_url($this->host);
-        $socket = @fsockopen($url['host'] ?? '', $url['port'] ?? 80, $code, $message, 1.0);
-        if (false === $socket) {
-            return false;
-        }
-        fclose($socket);
-
-        return true;
+        return array_map(static fn (float $x) => $x / $length, $data);
     }
 }

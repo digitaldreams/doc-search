@@ -22,7 +22,7 @@ final class EvalCommandTest extends SearchTestCase
         file_put_contents("$root/data/queries/fresh.tsv", "class\tfile_regex\tneedle\tquery\npara\tpage\\.rst\tanswer\ta plain question with many words\n");
         $this->index()->store([self::chunk('a', 'answer')], [self::axis(1)]);
         $locks = new LockFactory(new InMemoryStore());
-        $reranker = new Reranker(MockPlatformFactory::createPlatform('{"best":[1]}'));
+        $reranker = new Reranker(MockPlatformFactory::createPlatform(static fn () => new \Symfony\AI\Platform\Result\ObjectResult(['best' => [1]])), 'gemma4:latest');
         $retriever = new Retriever($this->embedder(self::axis(1)), $this->store, $this->db, $reranker, $locks);
         $command = new EvalCommand($retriever, $this->embedder(self::axis(1)), $this->store, $this->db, $root);
         $running = $locks->createLock('rerank'); // kept in a variable: a dropped Lock releases itself

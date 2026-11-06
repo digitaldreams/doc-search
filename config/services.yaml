@@ -7,6 +7,11 @@
 # Put parameters here that don't need to change on each machine where the app is deployed
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
+    app.embedding_model: '%env(EMBEDDING_MODEL)%'
+    app.rerank_model: '%env(RERANK_MODEL)%'
+    app.rerank_options: '%env(json:RERANK_OPTIONS)%'
+    app.search_limit: '%env(int:SEARCH_LIMIT)%'
+    app.embed_timeout: 15 # seconds of silence; a cold model load took 13.7 s once, 2.2 s usually
 
 services:
     # default configuration for services in *this* file
@@ -22,11 +27,30 @@ services:
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
 
+    # A model host that is off fails in 1 s. One that connects and then stalls is cut off after app.embed_timeout
+    # on the calls that answer in milliseconds (embeddings, Ollama's model lookup), so a stuck host cannot hold every
+    # web worker; the rerank keeps framework_http.yaml's 300 s, because on CPU it sends nothing for about a minute.
+    app.ai_http_client:
+        class: Symfony\Component\HttpClient\ScopingHttpClient
+        arguments:
+            - '@http_client'
+            - '.*(/api/embed|/api/show|:batchEmbedContents)$': { timeout: '%app.embed_timeout%', max_connect_duration: 1 }
+              '.*': { max_connect_duration: 1 }
+
     App\Docs\Embedder:
         arguments:
-            $host: '%env(OLLAMA_HOST_URL)%'
+            $vectorizer: '@ai.vectorizer.docs'
+            $model: '%app.embedding_model%'
+
+    App\Docs\Reranker:
+        arguments:
+            $model: '%app.rerank_model%'
+            $options: '%app.rerank_options%'
 
 when@test:
+    parameters:
+        app.embed_timeout: 1
+
     services:
         _defaults:
             autowire: true
@@ -35,7 +59,7 @@ when@test:
         App\Tests\Docs\FakeEmbeddings:
             factory: ['App\Tests\Docs\FakeEmbeddings', 'platform']
 
-        App\Docs\Embedder:
-            arguments:
-                $platform: '@App\Tests\Docs\FakeEmbeddings'
-                $host: ''
+        # the real Embedder wiring, with the model swapped for a deterministic fake
+        ai.vectorizer.docs:
+            class: Symfony\AI\Store\Document\Vectorizer
+            arguments: ['@App\Tests\Docs\FakeEmbeddings', 'test-model']

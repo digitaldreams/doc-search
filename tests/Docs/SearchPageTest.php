@@ -29,7 +29,7 @@ final class SearchPageTest extends WebTestCase
         self::assertSelectorExists('form input[name=q]');
     }
 
-    public function testSearchReturnsBothColumnsAsJson(): void
+    public function testSearchReturnsOnlyTheMeaningResultsAsJson(): void
     {
         $client = self::createClient();
         $this->seed($client);
@@ -40,8 +40,9 @@ final class SearchPageTest extends WebTestCase
         self::assertSame('vector', $data['meaning']['mode']);
         self::assertSame('security.rst', $data['meaning']['hits'][0]['file']);
         self::assertSame('Security > Login', $data['meaning']['hits'][0]['path']);
-        self::assertSame('security.rst', $data['words']['hits'][0]['file']);
-        self::assertArrayHasKey('source', $data['words']['hits'][0]);
+        self::assertArrayHasKey('source', $data['meaning']['hits'][0]);
+        self::assertArrayNotHasKey('words', $data);
+        self::assertArrayNotHasKey('words', $data['test']);
         self::assertSame('off', $data['meaning']['rerank']);
     }
 
@@ -56,7 +57,7 @@ final class SearchPageTest extends WebTestCase
         ], [FakeEmbeddings::vector('mailer transport'), FakeEmbeddings::vector('mailer time')]);
         $client->request('GET', '/search', ['q' => 'mailer']);
 
-        $urls = array_column(json_decode($client->getResponse()->getContent(), true)['words']['hits'], 'url', 'file');
+        $urls = array_column(json_decode($client->getResponse()->getContent(), true)['meaning']['hits'], 'url', 'file');
         // anchors are the heading slugs symfony.com uses; a page's own title needs none
         self::assertSame('https://symfony.com/doc/current/mailer.html#using-a-3rd-party-transport', $urls['mailer.rst']);
         self::assertSame('https://symfony.com/doc/current/reference/constraints/Time.html', $urls['reference/constraints/Time.rst']);
@@ -93,7 +94,6 @@ final class SearchPageTest extends WebTestCase
 
         $data = json_decode($client->getResponse()->getContent(), true);
         self::assertTrue($data['test']['known']);
-        self::assertNull($data['test']['words']);
         self::assertNull($data['test']['meaning']);
     }
 
@@ -130,5 +130,26 @@ final class SearchPageTest extends WebTestCase
         $client->request('GET', '/search', ['q' => ['a', 'b']]);
 
         self::assertResponseStatusCodeSame(400);
+    }
+
+    public function testAVisitorGetsSearchLimitSearchesAMinute(): void
+    {
+        // each search can be a paid model call: a script looping on the endpoint must not run up the bill
+        $client = self::createClient();
+        $client->disableReboot(); // one container for every request, so the count carries over
+        $this->seed($client);
+        $limit = self::getContainer()->getParameter('app.search_limit');
+        self::assertSame(10, $limit); // SEARCH_LIMIT in .env: the page's six examples fit in a minute
+
+        for ($i = 1; $i <= $limit; ++$i) {
+            $client->request('GET', '/search', ['q' => "question $i"]);
+            self::assertResponseIsSuccessful();
+        }
+        $client->request('GET', '/search', ['q' => 'one too many']);
+        self::assertResponseStatusCodeSame(429);
+        self::assertStringContainsString('minute', json_decode($client->getResponse()->getContent(), true)['error']);
+
+        $client->request('GET', '/search', ['q' => 'another visitor'], server: ['REMOTE_ADDR' => '10.0.0.2']);
+        self::assertResponseIsSuccessful();
     }
 }

@@ -9,6 +9,7 @@ use Doctrine\DBAL\Connection;
 use Symfony\AI\Platform\Result\VectorResult;
 use Symfony\AI\Platform\Test\MockPlatformFactory;
 use Symfony\AI\Platform\Vector\Vector;
+use Symfony\AI\Store\Document\Vectorizer;
 use Symfony\AI\Store\StoreInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
@@ -48,11 +49,16 @@ abstract class SearchTestCase extends KernelTestCase
         return new ChunkIndex($this->embedder($queryVector), $this->store, $this->db);
     }
 
-    protected function embedder(?array $queryVector = null, string $host = ''): Embedder
+    /** @param bool $down the model host fails every call, as when it is switched off */
+    protected function embedder(?array $queryVector = null, bool $down = false): Embedder
     {
-        $platform = null === $queryVector ? FakeEmbeddings::platform() : MockPlatformFactory::createPlatform(static fn () => new VectorResult([new Vector($queryVector)]));
+        $platform = match (true) {
+            $down => MockPlatformFactory::createPlatform(static fn () => throw new \RuntimeException('Couldn\'t connect to server')),
+            null === $queryVector => FakeEmbeddings::platform(),
+            default => MockPlatformFactory::createPlatform(static fn () => new VectorResult([new Vector($queryVector)])),
+        };
 
-        return new Embedder($platform, $this->db, $host);
+        return new Embedder(new Vectorizer($platform, 'test-model'), $this->db);
     }
 
     protected function retriever(array $queryVector): Retriever

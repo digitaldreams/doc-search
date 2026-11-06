@@ -1,7 +1,20 @@
 ai:
+    # One platform at a time: the embedder and the reranker use whichever is configured.
+    # Gemini (free embedding tier) instead of Ollama: swap the two blocks below and the vectorizer platform/model,
+    # set the Gemini values in .env.local (see GUIDE.md), then rebuild the index.
     platform:
         ollama:
             endpoint: '%env(OLLAMA_HOST_URL)%'
+            http_client: 'app.ai_http_client'
+        # gemini:
+        #     api_key: '%env(GEMINI_API_KEY)%'
+        #     http_client: 'app.ai_http_client'
+
+    vectorizer:
+        docs:
+            platform: 'ai.platform.ollama'
+            # Gemini: platform 'ai.platform.gemini', model '%app.embedding_model%?dimensions=768'
+            model: '%app.embedding_model%'
 
     store:
         postgres:

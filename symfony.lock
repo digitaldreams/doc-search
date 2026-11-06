@@ -62,6 +62,15 @@
             "config/packages/ai.yaml"
         ]
     },
+    "symfony/ai-gemini-platform": {
+        "version": "0.15",
+        "recipe": {
+            "repo": "github.com/symfony/recipes",
+            "branch": "main",
+            "version": "0.1",
+            "ref": "b703dbcb053eb9f41b2de73c5334a5214d4fcb57"
+        }
+    },
     "symfony/ai-ollama-platform": {
         "version": "0.15",
         "recipe": {

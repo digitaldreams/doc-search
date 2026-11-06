@@ -9,29 +9,15 @@ final class EmbedderTest extends SearchTestCase
         $query = $this->embedder()->query('zebra zebra');
 
         self::assertSame('live', $query['source']);
-        self::assertSame([['task: search result | query: zebra zebra']], FakeEmbeddings::$inputs);
+        self::assertSame(['task: search result | query: zebra zebra'], FakeEmbeddings::$inputs);
         self::assertEqualsWithDelta(1.0, sqrt(array_sum(array_map(static fn ($x) => $x * $x, $query['vector']))), 1e-9);
-    }
-
-    public function testTheConfiguredModelIsTheOneCalled(): void
-    {
-        $names = [];
-        $platform = \Symfony\AI\Platform\Test\MockPlatformFactory::createPlatform(static function ($model) use (&$names) {
-            $names[] = $model->getName();
-
-            return new \Symfony\AI\Platform\Result\VectorResult([new \Symfony\AI\Platform\Vector\Vector(FakeEmbeddings::vector('x'))]);
-        });
-
-        (new \App\Docs\Embedder($platform, $this->db, '', model: 'my-embedder'))->query('x');
-
-        self::assertSame(['my-embedder'], $names);
     }
 
     public function testASavedVectorAnswersWhenTheHostIsUnreachableAndSaysSo(): void
     {
         $saved = $this->embedder()->query('known question')['vector'];
 
-        $query = $this->embedder(host: 'http://127.0.0.1:1')->query('known question');
+        $query = $this->embedder(down: true)->query('known question');
 
         self::assertSame('saved', $query['source']);
         self::assertEqualsWithDelta($saved[crc32('known') % 768], $query['vector'][crc32('known') % 768], 1e-6);
@@ -39,23 +25,41 @@ final class EmbedderTest extends SearchTestCase
 
     public function testAnUnknownQuestionWithAnUnreachableHostHasNoVector(): void
     {
-        $query = $this->embedder(host: 'http://127.0.0.1:1')->query('never asked');
+        $query = $this->embedder(down: true)->query('never asked');
 
         self::assertSame('none', $query['source']);
         self::assertNull($query['vector']);
     }
 
-    public function testAHostThatAcceptsButNeverAnswersIsGivenUpOnQuickly(): void
+    public function testAModelHostThatIsOffIsGivenUpOnWithinASecond(): void
     {
-        $server = stream_socket_server('tcp://127.0.0.1:0'); // listens, so a connection succeeds, but never answers
-        $host = 'http://'.stream_socket_get_name($server, false);
-        $embedder = new \App\Docs\Embedder(FakeEmbeddings::platform(), $this->db, $host, \Symfony\Component\HttpClient\HttpClient::create(), 1.0);
+        // 192.0.2.1 is TEST-NET-1 (RFC 5737): never routed, so a connect attempt hangs until something cuts it off
+        $client = self::getContainer()->get('app.ai_http_client');
 
         $start = microtime(true);
-        $query = $embedder->query('asked while the host hangs');
+        try {
+            $client->request('GET', 'http://192.0.2.1:11434/api/version')->getStatusCode();
+            self::fail('an unroutable host cannot answer');
+        } catch (\Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface) {
+        }
 
-        self::assertSame('none', $query['source']);
-        self::assertLessThan(5, microtime(true) - $start);
+        self::assertLessThan(3, microtime(true) - $start);
+    }
+
+    public function testAModelHostThatConnectsButNeverAnswersAnEmbeddingIsGivenUpOn(): void
+    {
+        // listening but never accepting: the connect succeeds and no reply ever comes, like a stuck Ollama
+        $stalled = stream_socket_server('tcp://127.0.0.1:0');
+        $client = self::getContainer()->get('app.ai_http_client');
+
+        $start = microtime(true);
+        try {
+            $client->request('POST', 'http://'.stream_socket_get_name($stalled, false).'/api/embed')->getStatusCode();
+            self::fail('a host that never answers cannot return a status');
+        } catch (\Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface) {
+        }
+
+        self::assertLessThan(3, microtime(true) - $start); // the test env's embedding timeout is 1 s
     }
 
     public function testAQueryEmbeddingOfTheWrongSizeIsNotUsed(): void

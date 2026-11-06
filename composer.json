@@ -10,6 +10,7 @@
         "doctrine/doctrine-bundle": "*",
         "doctrine/doctrine-migrations-bundle": "*",
         "symfony/ai-bundle": "^0.15",
+        "symfony/ai-gemini-platform": "^0.15",
         "symfony/ai-ollama-platform": "^0.15",
         "symfony/ai-platform": "^0.15",
         "symfony/ai-postgres-store": "^0.15",
@@ -20,6 +21,7 @@
         "symfony/flex": "^2",
         "symfony/framework-bundle": "8.1.*",
         "symfony/lock": "8.1.*",
+        "symfony/rate-limiter": "8.1.*",
         "symfony/runtime": "8.1.*",
         "symfony/twig-bundle": "8.1.*",
         "symfony/yaml": "8.1.*"
