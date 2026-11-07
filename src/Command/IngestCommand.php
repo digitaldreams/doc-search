@@ -3,20 +3,25 @@
 namespace App\Command;
 
 use App\Docs\ChunkIndex;
-use App\Docs\Chunker;
 use App\Docs\Repos;
+use Symfony\AI\Store\Document\LoaderInterface;
 use Symfony\Component\Console\Attribute\Argument;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Attribute\Option;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\DependencyInjection\Attribute\AutowireLocator;
+use Symfony\Component\DependencyInjection\ServiceLocator;
 
 #[AsCommand('app:docs:ingest', 'Chunk one docs repo and index it; only chunks not yet indexed cost any work')]
 final class IngestCommand
 {
+    /**
+     * @param ServiceLocator<LoaderInterface> $loaders one per docs format, keyed by the repo's `extension` (#[AsTaggedItem] on each loader)
+     */
     public function __construct(
-        private readonly Chunker $chunker,
+        #[AutowireLocator('app.docs_loader')] private readonly ServiceLocator $loaders,
         private readonly ChunkIndex $index,
         private readonly Repos $repos,
         #[Autowire('%kernel.project_dir%')] private readonly string $root,
@@ -38,13 +43,14 @@ final class IngestCommand
         $config = $this->repos->get($key);
 
         $start = microtime(true);
-        $chunks = $this->chunker->chunkTree($config['path'], $config['extension'], $config['exclude'] ?? [], $config['label']);
-        $io->writeln(\sprintf('%d chunks from %s in %.1fs', \count($chunks), $key, microtime(true) - $start));
+        $loader = $this->loaders->get($config['extension']);
+        $documents = [...$loader->load($config['path'], ['exclude' => $config['exclude'] ?? [], 'product' => $config['label']])];
+        $io->writeln(\sprintf('%d chunks from %s in %.1fs', \count($documents), $key, microtime(true) - $start));
 
         $start = microtime(true);
         $bar = $io->createProgressBar();
         $seedFile = "$this->root/data/seed_vectors/$key.bin";
-        $stats = $this->index->sync($key, $chunks, $seedFile, $bar->advance(...));
+        $stats = $this->index->sync($key, $documents, $seedFile, $bar->advance(...));
         $bar->finish();
         $io->newLine();
         $io->success(\sprintf('%d from shipped vectors, %d embedded, %d unchanged, %d removed, in %.1fs.', $stats['seeded'], $stats['embedded'], $stats['kept'], $stats['removed'], microtime(true) - $start));

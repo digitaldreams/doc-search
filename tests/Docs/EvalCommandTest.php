@@ -24,7 +24,7 @@ final class EvalCommandTest extends SearchTestCase
         $this->index()->store(self::REPO, [self::chunk('a', 'answer')], [self::axis(1)]);
         $locks = new LockFactory(new InMemoryStore());
         $reranker = new Reranker(MockPlatformFactory::createPlatform(static fn () => new \Symfony\AI\Platform\Result\ObjectResult(['best' => [1]])), 'gemma4:latest');
-        $retriever = new Retriever($this->embedder(self::axis(1)), $this->store, $this->db, $reranker, $locks);
+        $retriever = new Retriever($this->embedder(self::axis(1)), $this->store, $reranker, $locks);
         $command = new EvalCommand($retriever, $this->embedder(self::axis(1)), $this->store, $this->db, self::getContainer()->get(Repos::class), $root);
         $running = $locks->createLock('rerank'); // kept in a variable: a dropped Lock releases itself
         $running->acquire();

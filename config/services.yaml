@@ -96,6 +96,19 @@ services:
             - '.*(/api/embed|/api/show|:batchEmbedContents)$': { timeout: '%app.embed_timeout%', max_connect_duration: 1 }
               '.*': { max_connect_duration: 1 }
 
+    # The docs store: pgvector (ai.yaml) for meaning, BM25 for exact words. CombinedStore writes both and fuses a
+    # HybridQuery by reciprocal rank. The StoreInterface alias stays the plain Postgres store, so app:docs:eval's
+    # store-* modes keep measuring Symfony AI's own text and hybrid queries.
+    app.docs_store:
+        class: Symfony\AI\Store\CombinedStore
+        arguments: ['@ai.store.postgres.docs', '@App\Docs\Bm25Store']
+
+    App\Docs\ChunkIndex:
+        arguments: { $store: '@app.docs_store' }
+
+    App\Docs\Retriever:
+        arguments: { $store: '@app.docs_store' }
+
     App\Docs\Embedder:
         arguments:
             $vectorizer: '@ai.vectorizer.docs'

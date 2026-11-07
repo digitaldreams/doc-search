@@ -145,7 +145,7 @@ let current = '';
 function say(text) { notice.textContent = text || ''; notice.hidden = !text; }
 
 function ms(t) {
-  const names = { embed: 'embedding the question', vector: 'vector scan', keyword: 'keyword search', rerank: 'LLM reorder' };
+  const names = { embed: 'embedding the question', vector: 'vector scan', hybrid: 'vector + keyword search', keyword: 'keyword search', rerank: 'LLM reorder' };
   return Object.entries(t).map(([k, v]) => `${names[k]} ${v < 1000 ? Math.round(v) + ' ms' : (v / 1000).toFixed(1) + ' s'}`).join(', ');
 }
 

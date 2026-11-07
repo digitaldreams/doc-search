@@ -2,6 +2,7 @@
 
 namespace App\Tests\Docs;
 
+use App\Docs\Chunker;
 final class RetrieverTest extends SearchTestCase
 {
     public function testVectorSearchRanksByMeaningEvenWithNoSharedWord(): void
@@ -17,7 +18,7 @@ final class RetrieverTest extends SearchTestCase
 
     public function testHitsCarryEverythingTheReaderAndTheRerankerNeed(): void
     {
-        $this->index()->store(self::REPO, [['id' => 'a', 'file' => 'x/y.rst', 'path' => ['Top', 'Sub'], 'text' => 'embedded', 'source' => 'all formats', 'anchor' => 'sub']], [self::axis(1)]);
+        $this->index()->store(self::REPO, [Chunker::document(['id' => 'a', 'file' => 'x/y.rst', 'path' => ['Top', 'Sub'], 'text' => 'embedded', 'source' => 'all formats', 'anchor' => 'sub'])], [self::axis(1)]);
 
         $hit = $this->retriever(self::axis(1))->search('a question with many plain words here', self::REPO)['hits'][0];
 
@@ -134,7 +135,7 @@ final class RetrieverTest extends SearchTestCase
     public function testKeywordsStillAnswerWhenTheModelHostIsUnreachable(): void
     {
         $this->index()->store(self::REPO, [self::chunk('a', 'PhpArrayAdapter details')], [self::axis(1)]);
-        $retriever = new \App\Docs\Retriever($this->embedder(self::axis(1), 'http://127.0.0.1:1'), $this->store, $this->db);
+        $retriever = new \App\Docs\Retriever($this->embedder(self::axis(1), 'http://127.0.0.1:1'), $this->store);
 
         $found = $retriever->search('PhpArrayAdapter', self::REPO);
 
@@ -148,7 +149,7 @@ final class RetrieverTest extends SearchTestCase
         $this->index()->store(self::REPO, [self::chunk('first', 'a'), self::chunk('second', 'b')], [self::axis(1), self::axis(1, 2)]);
         // e.g. the laptop host, which has the embedding model but not the reorder model
         $reranker = new \App\Docs\Reranker(\Symfony\AI\Platform\Test\MockPlatformFactory::createPlatform(static fn () => throw new \RuntimeException('model "gemma4:latest" not found')), 'gemma4:latest');
-        $retriever = new \App\Docs\Retriever($this->embedder(self::axis(1)), $this->store, $this->db, $reranker);
+        $retriever = new \App\Docs\Retriever($this->embedder(self::axis(1)), $this->store, $reranker);
 
         $found = $retriever->search('a plain question with many words', self::REPO, 10, true);
 
@@ -168,7 +169,7 @@ final class RetrieverTest extends SearchTestCase
             return new \Symfony\AI\Platform\Result\ObjectResult(['best' => [2, 1]]);
         }), 'gemma4:latest');
         $locks = new \Symfony\Component\Lock\LockFactory(new \Symfony\Component\Lock\Store\InMemoryStore());
-        $retriever = new \App\Docs\Retriever($this->embedder(self::axis(1)), $this->store, $this->db, $reranker, $locks);
+        $retriever = new \App\Docs\Retriever($this->embedder(self::axis(1)), $this->store, $reranker, $locks);
 
         $running = $locks->createLock('rerank');
         $running->acquire();

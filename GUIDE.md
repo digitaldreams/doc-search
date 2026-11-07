@@ -52,13 +52,15 @@ INDEXING (once, then only what changed)
   one docs repo: .rst + .rst.inc files, or .md files
         |
         v
-  RstParser | MarkdownParser  headings -> sections -> rendered blocks
-        |
+  RstLoader | MarkdownLoader  one Symfony AI loader per format, picked by the repo's `extension`
+        |   RstParser | MarkdownParser  headings -> sections -> rendered blocks
+        |   Chunker                     whole blocks, up to 512 est. tokens
+        |                               text   = one config format, what gets embedded
+        |                               source = every format, what the reader sees
+        |                               id     = sha1(file, breadcrumb, text), so unchanged = same id
         v
-  Chunker                     whole blocks, up to 512 est. tokens
-        |                     text   = one config format, what gets embedded
-        |                     source = every format, what the reader sees
-        |                     id     = sha1(file, breadcrumb, text), so unchanged = same id
+  TextDocument per chunk      content = "title: Page > Section | text: ...", the exact embedding input
+        |
         v
   ChunkIndex.sync             skip ids already stored, remove ids gone from this repo's docs
         |
@@ -66,11 +68,11 @@ INDEXING (once, then only what changed)
         |                                               |
         v                                               |
   Embedder.documents ---> Ollama: embeddinggemma-2      |
-        |   "title: Page > Section | text: ..."         |
+        |                                               |
         v                                               v
-  PostgreSQL + pgvector
-        chunks       (id, metadata JSONB, embedding vector(768), tokens)   <- Symfony AI store
-        chunk_terms  (term, chunk_id, tf)                                  <- BM25
+  app.docs_store = CombinedStore, one write per batch, in one transaction
+        Postgres store  -> chunks       (id, metadata JSONB, embedding vector(768), tokens)
+        Bm25Store       -> chunk_terms  (term, chunk_id, tf)
 
 
 SEARCH (every question)
@@ -81,12 +83,10 @@ SEARCH (every question)
   Embedder.query ---> Ollama: "task: search result | query: ..."
         |             host down? use the saved vector and say so; none saved? keywords only
         v
-  Retriever.vector            exact cosine scan of the chosen repo, top 50
-        |
-        v
-  looks like code, or one or two words?
-        |-- no  --> vector ranking as is
-        |-- yes --> Retriever.keyword (BM25, top 50) + reciprocal rank fusion, k = 60
+  Retriever                   one query to app.docs_store, inside the chosen repo, top 50
+        |-- plain question      --> VectorQuery   exact cosine scan
+        |-- code, or 1-2 words  --> HybridQuery   cosine + BM25, reciprocal rank fusion, k = 60 (CombinedStore)
+        |-- no vector at all    --> TextQuery     BM25 only
         v
   optional: Reranker          local LLM reorders the top 20; only integers are read from its reply
         |
@@ -96,11 +96,13 @@ SEARCH (every question)
 
 | Piece | File | Job |
 |---|---|---|
-| Chunker | `src/Docs/Chunker.php`, `RstParser.php`, `MarkdownParser.php` | Docs to chunks, the embedding input formats, the routing rule |
+| Loaders | `src/Docs/RstLoader.php`, `MarkdownLoader.php`, `!service_locator` in `config/services.yaml` | One Symfony AI `LoaderInterface` per docs format. A new format is one loader plus one line in the locator |
+| Chunker | `src/Docs/Chunker.php`, `RstParser.php`, `MarkdownParser.php` | Sections to chunks, the embedding input formats, the routing rule |
 | Repos | `src/Docs/Repos.php`, `app.docs_repos` in `config/services.yaml` | The docs repos, keyed by GitHub name; `DOCS_REPO` is the default |
-| Index | `src/Docs/ChunkIndex.php` | Incremental sync, shipped vectors, BM25 terms |
+| Index | `src/Docs/ChunkIndex.php` | Incremental sync, shipped vectors, the model guard |
+| Store | `app.docs_store` in `config/services.yaml`, `src/Docs/Bm25Store.php` | Symfony AI's `CombinedStore` over its Postgres store and a BM25 store |
 | Embedder | `src/Docs/Embedder.php` | Symfony AI Platform to Ollama, unit vectors, saved-vector fallback |
-| Retriever | `src/Docs/Retriever.php` | Vector search through the Symfony AI store, BM25 in SQL, fusion |
+| Retriever | `src/Docs/Retriever.php` | Routes each question to a vector, hybrid or text query |
 | Reranker | `src/Docs/Reranker.php` | Optional LLM reorder through the Symfony AI Platform |
 | Measurement | `src/Docs/TestSet.php`, `src/Command/EvalCommand.php` | What "correct" means, recall at each cutoff |
 | Ingest | `src/Command/IngestCommand.php` | `app:docs:ingest` |
@@ -339,6 +341,8 @@ Identical ids also meant the vectors could ship with the app (`data/seed_vectors
 
 **Store: vectors, yes.** `VectorQuery` with cosine distance does exactly what is needed, and writes go through it too.
 
+**Store: fusion, yes, with our own keyword store.** `CombinedStore` sends a `HybridQuery` to a vector store and a text store and fuses the two by reciprocal rank (k = 60), the same formula this app used to hand-write. Its text store here is `Bm25Store`, so every read and write in the app goes through one `StoreInterface` (`app.docs_store`). The `StoreInterface` alias stays the plain Postgres store, which is what `app:docs:eval`'s `store-text` and `store-hybrid` modes measure below.
+
 **Store: `HybridQuery` and `TextQuery`, no.** They were the obvious choice, so they were measured before being dismissed:
 
 | Top 10, reworded | Fresh | Held-out |
@@ -358,7 +362,7 @@ where to_tsvector('english', metadata->>'_text')
 
 This is not a bug report: on identifiers those queries do well, at 100% in the top 10, and they suit a query that really is keywords. They also compute `to_tsvector` per row with no index, at about 650-800 ms per query.
 
-**BM25 in SQL instead of `ts_rank`.** `ts_rank` ignores how rare a word is, so a rare identifier would count no more than "the". That would also make the comparison dishonest: a weak keyword baseline flatters vectors. `chunk_terms` is a small inverted index, and `Retriever::keyword` computes the same formula as SQLite FTS5 (k1 = 1.2, b = 0.75) in one query. `rotating_file` stays one term. It matched the SQLite numbers.
+**BM25 in SQL instead of `ts_rank`.** `ts_rank` ignores how rare a word is, so a rare identifier would count no more than "the". That would also make the comparison dishonest: a weak keyword baseline flatters vectors. `chunk_terms` is a small inverted index, and `Bm25Store` computes the same formula as SQLite FTS5 (k1 = 1.2, b = 0.75) in one query. `rotating_file` stays one term. It matched the SQLite numbers.
 
 **Fusion by rank, not score.** Cosine similarity and BM25 are on unrelated scales, so adding them requires a weight that needs tuning. Reciprocal rank fusion only uses positions.
 
@@ -375,13 +379,16 @@ Measured on 104 reworded questions, on a copy of the data:
 
 HNSW at `ef_search` 100 is about 13 times faster and lost nothing measurable in the top 10. It still is not used: it would save about 17 ms out of a search of about 130 ms, and the model call dominates. It also adds a 25 MB index and a setting to manage. Note the trap in the second row: with the default `ef_search`, asking for 50 rows quietly returns 40.
 
-An exact scan of ten times the rows (63,700) took 232 ms, about as long as embedding a question. That is the point to add HNSW, with `ef_search` of at least 100, and the Store's `setup()` can create the index.
+An exact scan of ten times the rows (63,700) took 232 ms, about as long as embedding a question. That is the point to add HNSW, with `ef_search` of at least 100.
+
+> **Warning: never run `ai:store:setup` on the docs store.** Migrations own the schema. `setup()` would add an HNSW index with the default `ef_search` of 40, and pgvector applies the repo filter after the index search: asking for 50 rows of a small repo (Doctrine DBAL is 2% of the rows) could return almost none. Add HNSW through a migration, with `hnsw.iterative_scan` on. The repo filter itself has a plain index (`chunks_repo_idx`): the DBAL vector scan went from 27.7 ms to 1.5 ms.
 
 ## 5. Tests
 
 `php bin/phpunit`: unit tests for pure logic, feature tests against a real Postgres, and a fake model.
 
-- **Chunker:** parity with Python across the full corpus, plus each parsing rule.
+- **Chunker:** parity with Python across the full corpus (through the loader, as ingest reads it), plus each parsing rule.
+- **Ingest:** a repo is read with the loader of its `extension`.
 - **Retriever:** exact RRF order, rare terms beat common ones, identifiers stay one term, quotes in a query are data, a repeated paragraph moves behind different ones.
 - **Measurement:** the file regex must match the whole path; a page hit counts the answer anywhere on the page; a rerank run whose reorder was busy or failed is refused instead of saved.
 - **ChunkIndex:** shipped vectors cost no model calls, a second sync does nothing, a docs path with no chunks cannot wipe the index, short or wrong-sized model replies are refused.

@@ -89,19 +89,6 @@ final class SearchController extends AbstractController
 
     private static function view(array $hit, string $url): array
     {
-        return ['file' => $hit['file'], 'path' => implode(' > ', $hit['path']), 'source' => $hit['source'], 'url' => self::url($hit, $url)];
-    }
-
-    /**
-     * The hit's section on its docs site, so a reader whose chunk holds only part of the answer can read on.
-     * The anchor is the page's own (`<a name>` in Laravel's docs); without one, the heading slug symfony.com uses.
-     * ponytail: heading slug matched 310 of 312 live symfony.com anchors checked; a missing anchor still opens the page.
-     */
-    private static function url(array $hit, string $pattern): string
-    {
-        $url = str_replace('{page}', preg_replace('/\.[^.\/]+$/', '', $hit['file']), $pattern);
-        $section = $hit['anchor'] ?? (\count($hit['path']) > 1 ? trim(preg_replace('/[^a-z0-9]+/', '-', strtolower(end($hit['path']))), '-') : '');
-
-        return '' !== $section ? "$url#$section" : $url;
+        return ['file' => $hit['file'], 'path' => implode(' > ', $hit['path']), 'source' => $hit['source'], 'url' => Repos::url($hit, $url)];
     }
 }

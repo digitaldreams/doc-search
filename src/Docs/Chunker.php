@@ -2,11 +2,12 @@
 
 namespace App\Docs;
 
-use Symfony\Component\Finder\Finder;
+use Symfony\AI\Store\Document\Metadata;
+use Symfony\AI\Store\Document\TextDocument;
 
 /**
- * Turns a docs tree into chunks for embeddinggemma-2. A parser per format reads a file into sections of
- * rendered blocks; packing them into chunks is the same for every format.
+ * Packs a file's sections into chunks for embeddinggemma-2. A loader per format (RstLoader, MarkdownLoader) reads
+ * files into sections of rendered blocks; packing them into chunks is the same for every format.
  *
  * A chunk's "text" is what gets embedded (one config format). Its "source" is the same content with
  * every format, which is what a reader sees. Chunk ids hash file + breadcrumb + text, so an unchanged
@@ -21,12 +22,6 @@ final class Chunker
     public const SPACE = '\s\x1c-\x1f';
     /** Code-shaped tokens only: acronyms and hyphens also appear in plain questions. */
     private const CODE_SHAPED = '/::|\\\\|_|#\[|\$|\w:\w|\w\/\w|\w\+\w|[a-z][A-Z]/u';
-
-    public function __construct(
-        private readonly RstParser $rst = new RstParser(),
-        private readonly MarkdownParser $md = new MarkdownParser(),
-    ) {
-    }
 
     /** @param array{path: list<string>, text: string} $chunk */
     public static function docInput(array $chunk): string
@@ -49,27 +44,14 @@ final class Chunker
     }
 
     /**
-     * @param list<string> $exclude Finder path patterns: a substring, a glob or a regex
-     * @param string        $product the name RST version markers use: "New in <product> 3.6"
+     * Pack one file's sections into chunks. Every format's loader reads its files into sections, then calls this.
+     *
+     * @param list<array{list<string>, list<array{string, string}>, ?string}> $sections breadcrumb, blocks as [text, source], anchor
      *
      * @return list<Chunk>
      */
-    public function chunkTree(string $root, string $extension, array $exclude = [], string $product = 'Symfony', int $maxTokens = 512): array
+    public function chunks(string $rel, array $sections, int $maxTokens = 512): array
     {
-        // dot files and dirs are skipped by Finder's default
-        $files = Finder::create()->files()->in($root)->name("*.$extension")->notPath($exclude)->sortByName();
-        $out = [];
-        foreach ($files as $file) {
-            array_push($out, ...$this->chunkFile($file->getRelativePathname(), $root, $maxTokens, $product));
-        }
-
-        return $out;
-    }
-
-    /** @return list<Chunk> */
-    public function chunkFile(string $rel, string $root, int $maxTokens = 512, string $product = 'Symfony'): array
-    {
-        $sections = 'md' === pathinfo($rel, \PATHINFO_EXTENSION) ? $this->md->sections($rel, $root) : $this->rst->sections($rel, $root, $product);
         $out = [];
         foreach ($sections as [$path, $items, $anchor]) {
             foreach ($this->pack($items, $maxTokens) as [$text, $source]) {
@@ -81,6 +63,18 @@ final class Chunker
         }
 
         return $out;
+    }
+
+    /**
+     * A chunk as Symfony AI's document: its content is exactly what gets embedded, its metadata what a hit shows.
+     *
+     * @param Chunk $chunk
+     */
+    public static function document(array $chunk): TextDocument
+    {
+        return new TextDocument($chunk['id'], self::docInput($chunk), new Metadata([
+            'file' => $chunk['file'], 'path' => $chunk['path'], 'text' => $chunk['text'], 'source' => $chunk['source'], 'anchor' => $chunk['anchor'] ?? null,
+        ]));
     }
 
     /** @return list<string> */

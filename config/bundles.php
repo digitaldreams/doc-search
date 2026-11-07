@@ -7,4 +7,5 @@ return [
     Symfony\AI\AiBundle\AiBundle::class => ['all' => true],
     Symfony\Bundle\TwigBundle\TwigBundle::class => ['all' => true],
     Symfony\Bundle\MakerBundle\MakerBundle::class => ['dev' => true],
+    Symfony\AI\McpBundle\McpBundle::class => ['all' => true],
 ];

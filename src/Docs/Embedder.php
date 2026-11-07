@@ -4,6 +4,7 @@ namespace App\Docs;
 
 use Doctrine\DBAL\Connection;
 use Symfony\AI\Platform\Vector\Vector;
+use Symfony\AI\Store\Document\TextDocument;
 use Symfony\AI\Store\Document\VectorizerInterface;
 
 /**
@@ -32,15 +33,15 @@ final class Embedder
     }
 
     /**
-     * @param list<array{path: list<string>, text: string}> $chunks
+     * @param list<TextDocument> $documents each content is the exact text to embed (Chunker::document)
      *
-     * @return list<list<float>> one unit vector per chunk, in order
+     * @return list<list<float>> one unit vector per document, in order
      */
-    public function documents(array $chunks): array
+    public function documents(array $documents): array
     {
-        $vectors = $this->vectorizer->vectorize(array_map(Chunker::docInput(...), $chunks));
-        if (\count($vectors) !== \count($chunks)) {
-            throw new \RuntimeException(\sprintf('The model returned %d vectors for %d chunks.', \count($vectors), \count($chunks)));
+        $vectors = $this->vectorizer->vectorize(array_map(static fn (TextDocument $d) => $d->getContent(), $documents));
+        if (\count($vectors) !== \count($documents)) {
+            throw new \RuntimeException(\sprintf('The model returned %d vectors for %d chunks.', \count($vectors), \count($documents)));
         }
 
         return array_map(self::unit(...), $vectors);

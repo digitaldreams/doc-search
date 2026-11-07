@@ -98,7 +98,7 @@ final class ChunkIndexTest extends SearchTestCase
 
     public function testEachChunkRemembersItsRepoAndAnchor(): void
     {
-        $this->index()->store('laravel/docs', [self::chunk('a', 'routes') + ['anchor' => 'basic-routing'], self::chunk('b', 'no anchor')], [self::axis(1), self::axis(2)]);
+        $this->index()->store('laravel/docs', [self::chunk('a', 'routes', anchor: 'basic-routing'), self::chunk('b', 'no anchor')], [self::axis(1), self::axis(2)]);
 
         $rows = $this->db->fetchAllKeyValue("SELECT id, metadata->>'repo' || ' #' || coalesce(metadata->>'anchor', '-') FROM chunks ORDER BY id");
         self::assertSame(['a' => 'laravel/docs #basic-routing', 'b' => 'laravel/docs #-'], $rows);

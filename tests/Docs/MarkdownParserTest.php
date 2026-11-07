@@ -3,6 +3,7 @@
 namespace App\Tests\Docs;
 
 use App\Docs\Chunker;
+use App\Docs\MarkdownParser;
 use PHPUnit\Framework\TestCase;
 
 /** Markdown as Laravel's docs write it (github.com/laravel/docs), read through the chunker like ingest does. */
@@ -14,7 +15,7 @@ final class MarkdownParserTest extends TestCase
         mkdir($root);
         file_put_contents("$root/page.md", $md);
         try {
-            return (new Chunker())->chunkFile('page.md', $root);
+            return (new Chunker())->chunks('page.md', (new MarkdownParser())->sections('page.md', $root));
         } finally {
             exec('rm -rf '.escapeshellarg($root));
         }

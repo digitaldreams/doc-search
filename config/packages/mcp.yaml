@@ -1,0 +1,12 @@
+mcp:
+    servers:
+        default:
+            registry: ['App\Mcp\']
+
+            # Only localhost is allowed by default (DNS rebinding protection).
+            http:
+                path: /mcp
+
+            # bin/console mcp:server, for clients that start the server themselves
+            transports:
+                stdio: true

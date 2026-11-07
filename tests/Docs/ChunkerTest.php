@@ -3,6 +3,10 @@
 namespace App\Tests\Docs;
 
 use App\Docs\Chunker;
+use App\Docs\MarkdownLoader;
+use App\Docs\RstLoader;
+use App\Docs\RstParser;
+use Symfony\AI\Store\Document\LoaderInterface;
 use PHPUnit\Framework\TestCase;
 
 final class ChunkerTest extends TestCase
@@ -38,10 +42,21 @@ final class ChunkerTest extends TestCase
             file_put_contents("$root/$name", $body);
         }
         try {
-            return (new Chunker())->chunkFile('page.rst', $root, $maxTokens, $product);
+            return (new Chunker())->chunks('page.rst', (new RstParser())->sections('page.rst', $root, $product), $maxTokens);
         } finally {
             exec('rm -rf '.escapeshellarg($root));
         }
+    }
+
+    /** A loader's documents back as chunk fields, for assertions written against chunks. */
+    private static function load(LoaderInterface $loader, string $root, array $exclude = []): array
+    {
+        $out = [];
+        foreach ($loader->load($root, ['exclude' => $exclude]) as $d) {
+            $out[] = ['id' => $d->getId()] + $d->getMetadata()->getArrayCopy();
+        }
+
+        return $out;
     }
 
     public function testEveryChunkMatchesThePythonChunkerThatProducedTheMeasuredVectors(): void
@@ -51,7 +66,7 @@ final class ChunkerTest extends TestCase
             $expected[] = $line;
         }
         $actual = [];
-        foreach ((new Chunker())->chunkTree(self::DOCS, 'rst', ['#(^|/)_#']) as $c) {
+        foreach (self::load(new RstLoader(), self::DOCS, ['#(^|/)_#']) as $c) {
             $actual[] = implode("\t", [$c['id'], $c['file'], sha1($c['source'])]);
         }
 
@@ -70,7 +85,7 @@ final class ChunkerTest extends TestCase
             file_put_contents("$root/$name", $body);
         }
         try {
-            $chunks = (new Chunker())->chunkTree($root, 'md', ['readme.md', '#(^|/)_#']);
+            $chunks = self::load(new MarkdownLoader(), $root, ['readme.md', '#(^|/)_#']);
         } finally {
             exec('rm -rf '.escapeshellarg($root));
         }
@@ -89,7 +104,7 @@ final class ChunkerTest extends TestCase
         file_put_contents("$outer/repo/ok.md", "# Ok\n\nmarkdown kept");
         file_put_contents("$outer/repo/page.rst", "Page\n====\n\nrst kept\n\n.. include:: ../outside.txt\n\n.. include:: /../outside.txt\n\n.. include:: sub/inner.txt\n\n.. literalinclude:: ../outside.txt\n\n.. literalinclude:: sub/inner.txt\n");
         try {
-            $chunks = [...(new Chunker())->chunkTree("$outer/repo", 'md'), ...(new Chunker())->chunkTree("$outer/repo", 'rst')];
+            $chunks = [...self::load(new MarkdownLoader(), "$outer/repo"), ...self::load(new RstLoader(), "$outer/repo")];
         } finally {
             exec('rm -rf '.escapeshellarg($outer));
         }

@@ -2,6 +2,7 @@
 
 namespace App\Tests\Docs;
 
+use App\Docs\Chunker;
 use App\Docs\ChunkIndex;
 use Doctrine\DBAL\Connection;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -15,8 +16,8 @@ final class SearchPageTest extends WebTestCase
         $db->executeStatement('TRUNCATE chunks, chunk_terms, query_vectors');
         $text = 'Redirect users after a failed login attempt with failure_path';
         $c->get(ChunkIndex::class)->store(SearchTestCase::REPO, [
-            ['id' => 'a', 'file' => 'security.rst', 'path' => ['Security', 'Login'], 'text' => $text, 'source' => $text],
-            ['id' => 'b', 'file' => 'cache.rst', 'path' => ['Cache'], 'text' => 'Cache pools', 'source' => 'Cache pools'],
+            Chunker::document(['id' => 'a', 'file' => 'security.rst', 'path' => ['Security', 'Login'], 'text' => $text, 'source' => $text]),
+            Chunker::document(['id' => 'b', 'file' => 'cache.rst', 'path' => ['Cache'], 'text' => 'Cache pools', 'source' => 'Cache pools']),
         ], [FakeEmbeddings::vector($text), FakeEmbeddings::vector('cache pools')]);
     }
 
@@ -52,8 +53,8 @@ final class SearchPageTest extends WebTestCase
         $c = self::getContainer();
         $c->get(Connection::class)->executeStatement('TRUNCATE chunks, chunk_terms, query_vectors');
         $c->get(ChunkIndex::class)->store(SearchTestCase::REPO, [
-            ['id' => 'a', 'file' => 'mailer.rst', 'path' => ['Sending Emails with Mailer', 'Using a 3rd Party Transport'], 'text' => 'mailer transport', 'source' => 's'],
-            ['id' => 'b', 'file' => 'reference/constraints/Time.rst', 'path' => ['Time'], 'text' => 'mailer time', 'source' => 's'],
+            Chunker::document(['id' => 'a', 'file' => 'mailer.rst', 'path' => ['Sending Emails with Mailer', 'Using a 3rd Party Transport'], 'text' => 'mailer transport', 'source' => 's']),
+            Chunker::document(['id' => 'b', 'file' => 'reference/constraints/Time.rst', 'path' => ['Time'], 'text' => 'mailer time', 'source' => 's']),
         ], [FakeEmbeddings::vector('mailer transport'), FakeEmbeddings::vector('mailer time')]);
         $client->request('GET', '/search', ['q' => 'mailer']);
 
@@ -107,10 +108,10 @@ final class SearchPageTest extends WebTestCase
         $c = self::getContainer();
         $c->get(Connection::class)->executeStatement('TRUNCATE chunks, chunk_terms, query_vectors');
         $c->get(ChunkIndex::class)->store(SearchTestCase::REPO, [
-            ['id' => 's', 'file' => 'routing.rst', 'path' => ['Routing'], 'text' => 'route parameters', 'source' => 's'],
+            Chunker::document(['id' => 's', 'file' => 'routing.rst', 'path' => ['Routing'], 'text' => 'route parameters', 'source' => 's']),
         ], [FakeEmbeddings::vector('route parameters')]);
         $c->get(ChunkIndex::class)->store('laravel/docs', [
-            ['id' => 'l', 'file' => 'routing.md', 'path' => ['Routing', 'Optional Parameters'], 'text' => 'route parameters', 'source' => 's', 'anchor' => 'parameters-optional-parameters'],
+            Chunker::document(['id' => 'l', 'file' => 'routing.md', 'path' => ['Routing', 'Optional Parameters'], 'text' => 'route parameters', 'source' => 's', 'anchor' => 'parameters-optional-parameters']),
         ], [FakeEmbeddings::vector('route parameters')]);
 
         $client->request('GET', '/search', ['q' => 'route parameters', 'repo' => 'laravel/docs']);

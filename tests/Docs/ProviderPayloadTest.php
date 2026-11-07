@@ -2,6 +2,7 @@
 
 namespace App\Tests\Docs;
 
+use App\Docs\Chunker;
 use App\Docs\Embedder;
 use App\Docs\Reranker;
 use Symfony\AI\Platform\Bridge\Gemini\Factory as GeminiFactory;
@@ -80,7 +81,7 @@ final class ProviderPayloadTest extends SearchTestCase
     {
         $embedder = new Embedder(new Vectorizer($this->ollama(), Embedder::DEFAULT_MODEL), $this->db);
 
-        $embedder->documents([['path' => ['Top', 'Sub'], 'text' => 'body']]);
+        $embedder->documents([Chunker::document(['id' => 'a', 'file' => 'f.rst', 'path' => ['Top', 'Sub'], 'text' => 'body', 'source' => 'body'])]);
         self::assertSame(['model' => Embedder::DEFAULT_MODEL, 'input' => ['title: Top > Sub | text: body']], $this->last('/api/embed'));
 
         $embedder->query('how?');

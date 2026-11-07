@@ -3,12 +3,14 @@
 namespace App\Tests\Docs;
 
 use App\Docs\ChunkIndex;
+use App\Docs\Chunker;
 use App\Docs\Embedder;
 use App\Docs\Retriever;
 use Doctrine\DBAL\Connection;
 use Symfony\AI\Platform\Result\VectorResult;
 use Symfony\AI\Platform\Test\MockPlatformFactory;
 use Symfony\AI\Platform\Vector\Vector;
+use Symfony\AI\Store\Document\TextDocument;
 use Symfony\AI\Store\Document\Vectorizer;
 use Symfony\AI\Store\StoreInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -25,7 +27,7 @@ abstract class SearchTestCase extends KernelTestCase
     {
         self::bootKernel();
         $this->db = self::getContainer()->get(Connection::class);
-        $this->store = self::getContainer()->get(StoreInterface::class);
+        $this->store = self::getContainer()->get('app.docs_store'); // vectors + BM25, as the app uses it
         $this->db->executeStatement('TRUNCATE chunks, chunk_terms, query_vectors, index_meta');
         FakeEmbeddings::$inputs = [];
     }
@@ -41,9 +43,9 @@ abstract class SearchTestCase extends KernelTestCase
         return $v;
     }
 
-    protected static function chunk(string $id, string $text, array $path = ['Page'], string $file = 'page.rst'): array
+    protected static function chunk(string $id, string $text, array $path = ['Page'], string $file = 'page.rst', ?string $anchor = null): TextDocument
     {
-        return ['id' => $id, 'file' => $file, 'path' => $path, 'text' => $text, 'source' => $text];
+        return Chunker::document(['id' => $id, 'file' => $file, 'path' => $path, 'text' => $text, 'source' => $text, 'anchor' => $anchor]);
     }
 
     protected function index(?array $queryVector = null): ChunkIndex
@@ -65,6 +67,6 @@ abstract class SearchTestCase extends KernelTestCase
 
     protected function retriever(array $queryVector): Retriever
     {
-        return new Retriever($this->embedder($queryVector), $this->store, $this->db);
+        return new Retriever($this->embedder($queryVector), $this->store);
     }
 }
