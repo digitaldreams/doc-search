@@ -18,3 +18,7 @@
 /data/laravel-docs/
 /data/twig/
 /data/doctrine-orm/
+/data/doctrine-dbal/
+.DS_Store
+.env
+.env.dev

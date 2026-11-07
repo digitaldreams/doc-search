@@ -60,6 +60,17 @@ parameters:
                 - store a PHP enum in a column
                 - keep a running total on the parent without loading every child
                 - fetch big result sets without running out of memory
+        # Same, -b 4.5.x https://github.com/doctrine/dbal data/doctrine-dbal, sparse-checkout set docs
+        doctrine/dbal:
+            label: Doctrine DBAL
+            path: '%kernel.project_dir%/data/doctrine-dbal/docs/en'
+            extension: rst
+            url: 'https://www.doctrine-project.org/projects/doctrine-dbal/en/4.5/{page}.html'
+            exclude: [sidebar.rst] # the site's menu
+            examples:
+                - retry a transaction after a deadlock
+                - pass an array of ids to an IN clause
+                - list the columns of a table
 
 services:
     # default configuration for services in *this* file
